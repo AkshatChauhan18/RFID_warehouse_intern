@@ -1,0 +1,14 @@
+# Ignore local database volume
+postgres_data/
+
+# Ignore Python virtual environments
+.venv/
+.env/
+__pycache__/
+*.pyc
+
+# Ignore environment variables/secrets
+.env
+
+# Ignore Alembic local configuration cache
+alembic/.ini

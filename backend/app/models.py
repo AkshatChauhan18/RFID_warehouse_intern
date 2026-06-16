@@ -1,10 +1,6 @@
 from sqlalchemy import Column, Integer, String,create_engine,DateTime,ForeignKey,CheckConstraint,Boolean
-from sqlalchemy.orm import declarative_base,sessionmaker
 from sqlalchemy.sql import func
-Base = declarative_base()
-engine = create_engine("postgresql+psycopg://warehouse_manager:hello_world_123@localhost:5432/warehouse")
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
+from app.database import Base, SessionLocal
 class Part(Base):
     __tablename__ = 'parts'
     id =  Column(Integer,primary_key=True,index=True)
@@ -13,6 +9,12 @@ class Part(Base):
     description = Column(String())
     created_at = Column(DateTime(timezone=True),server_default=func.now())
 
+class RFIDTag(Base):
+    __tablename__ = "rfid_tags"
+
+    rfid_uid = Column(String(100), primary_key=True, index=True)
+    part_id = Column(Integer, ForeignKey("parts.id", ondelete="CASCADE"), nullable=False)
+    enrolled_at = Column(DateTime(timezone=True), server_default=func.now())
 class Bin(Base):
     __tablename__ = "bins"
 

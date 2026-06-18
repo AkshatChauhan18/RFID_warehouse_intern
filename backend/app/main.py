@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta, timezone
-
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -43,6 +42,25 @@ def get_all_parts(db: Session = Depends(get_db)):
     return parts
 
 
+@app.post("/api/v1/enrollrfid",status_code=status.HTTP_201_CREATED)
+def enroll_rfid(payload: schemas.EnrollmentData, db: Session = Depends(get_db)):
+    # Implementation for enrolling RFID tag
+    existing_tag = db.query(models.RFIDTag).filter(models.RFIDTag.rfid_uid == payload.rfid_uid).first()
+    if existing_tag:
+        raise HTTPException(status_code=400, detail="RFID tag already enrolled.")
+    
+    part = db.query(models.Part).filter(models.Part.id == payload.part_id).first()
+    if not part:
+        raise HTTPException(status_code=404, detail="Part not found in the catalog.")
+    
+    new_tag = models.RFIDTag(rfid_uid=payload.rfid_uid, part_id=payload.part_id)
+    db.add(new_tag)
+    db.commit()
+    return {
+        "status": "success", 
+        "message": f"Sticker {payload.rfid_uid} successfully mapped to '{part.name}'."
+    }
+
 @app.post(("/api/v1/scan"), status_code=status.HTTP_201_CREATED)
 def process_hardware_scan(payload: schemas.HardwareScan, db: Session = Depends(get_db)):
     bin_record = (
@@ -76,10 +94,9 @@ def process_hardware_scan(payload: schemas.HardwareScan, db: Session = Depends(g
         inferred_action = "IN"
     else:
         now_utc = datetime.now(timezone.utc)
-        # now_utc = datetime.now(timezone.utc)
         raw_time:datetime= last_transaction.tx_timestamp #type:ignore
         tx_time = raw_time.replace(tzinfo=timezone.utc) if raw_time.tzinfo is None else raw_time
-        if (now_utc - tx_time) < timedelta(seconds=3): #type:ignore
+        if (now_utc - tx_time) < timedelta(seconds=3): 
             return {"status": "ignored", "reason": "cooldown_active", "message": "Tag bouncing prevented."}
         inferred_action = "OUT" if last_transaction.tx_type == "IN" else "IN"
     try:

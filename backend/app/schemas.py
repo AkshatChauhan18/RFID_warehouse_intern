@@ -31,3 +31,7 @@ class HardwareScan(BaseModel):
     quantity: int = Field(
         default=1, description="Quantity of parts scanned, default is 1"
     )
+
+class EnrollmentData(BaseModel):
+    rfid_uid: str = Field(..., description="UID of RFID tag to enroll")
+    part_id: int = Field(..., description="ID of part to associate with RFID tag")

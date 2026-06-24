@@ -3,7 +3,7 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List
-
+from sqlalchemy import func
 from app import models, schemas
 
 app = FastAPI(title="Warehouse Inventory API")
@@ -42,24 +42,51 @@ def get_all_parts(db: Session = Depends(get_db)):
     return parts
 
 
-@app.post("/api/v1/enrollrfid",status_code=status.HTTP_201_CREATED)
+@app.get("/api/v1/inventory", response_model=List[schemas.InventoryResponse])
+def get_inventory(db: Session = Depends(get_db)):
+    # Join Inventory with Part and Bin tables
+    rows = (
+        db.query(models.Inventory, models.Part, models.Bin)
+        .join(models.Part, models.Part.id == models.Inventory.part_id)
+        .join(models.Bin, models.Bin.id == models.Inventory.bin_id)
+        .all()
+    )
+    
+    return [
+        {
+            "name": part.name,
+            "sku": part.sku,
+            "bin": bin_.bin_label,
+            "qty": inv.quantity,
+            "status": "Critical" if inv.quantity < 5 else "Low Stock" if inv.quantity < 25 else "Optimal"
+        }
+        for inv, part, bin_ in rows
+    ]
+
+
+@app.post("/api/v1/enrollrfid", status_code=status.HTTP_201_CREATED)
 def enroll_rfid(payload: schemas.EnrollmentData, db: Session = Depends(get_db)):
     # Implementation for enrolling RFID tag
-    existing_tag = db.query(models.RFIDTag).filter(models.RFIDTag.rfid_uid == payload.rfid_uid).first()
+    existing_tag = (
+        db.query(models.RFIDTag)
+        .filter(models.RFIDTag.rfid_uid == payload.rfid_uid)
+        .first()
+    )
     if existing_tag:
         raise HTTPException(status_code=400, detail="RFID tag already enrolled.")
-    
+
     part = db.query(models.Part).filter(models.Part.id == payload.part_id).first()
     if not part:
         raise HTTPException(status_code=404, detail="Part not found in the catalog.")
-    
+
     new_tag = models.RFIDTag(rfid_uid=payload.rfid_uid, part_id=payload.part_id)
     db.add(new_tag)
     db.commit()
     return {
-        "status": "success", 
-        "message": f"Sticker {payload.rfid_uid} successfully mapped to '{part.name}'."
+        "status": "success",
+        "message": f"Sticker {payload.rfid_uid} successfully mapped to '{part.name}'.",
     }
+
 
 @app.post(("/api/v1/scan"), status_code=status.HTTP_201_CREATED)
 def process_hardware_scan(payload: schemas.HardwareScan, db: Session = Depends(get_db)):
@@ -94,21 +121,35 @@ def process_hardware_scan(payload: schemas.HardwareScan, db: Session = Depends(g
         inferred_action = "IN"
     else:
         now_utc = datetime.now(timezone.utc)
-        raw_time:datetime= last_transaction.tx_timestamp #type:ignore
-        tx_time = raw_time.replace(tzinfo=timezone.utc) if raw_time.tzinfo is None else raw_time
-        if (now_utc - tx_time) < timedelta(seconds=3): 
-            return {"status": "ignored", "reason": "cooldown_active", "message": "Tag bouncing prevented."}
+        raw_time: datetime = last_transaction.tx_timestamp  # type: ignore
+        tx_time = (
+            raw_time.replace(tzinfo=timezone.utc)
+            if raw_time.tzinfo is None
+            else raw_time
+        )
+        if (now_utc - tx_time) < timedelta(seconds=3):
+            return {
+                "status": "ignored",
+                "reason": "cooldown_active",
+                "message": "Tag bouncing prevented.",
+            }
         inferred_action = "OUT" if last_transaction.tx_type == "IN" else "IN"
     try:
-        inventory_record = db.query(models.Inventory).filter(
-            models.Inventory.part_id == part_id,
-            models.Inventory.bin_id == bin_record.id
-        ).first()
-        
+        inventory_record = (
+            db.query(models.Inventory)
+            .filter(
+                models.Inventory.part_id == part_id,
+                models.Inventory.bin_id == bin_record.id,
+            )
+            .first()
+        )
+
         if inventory_record is None:
             if inferred_action == "OUT":
                 raise ValueError("Cannot remove an item that is not in this bin.")
-            inventory_record = models.Inventory(part_id=part_id, bin_id=bin_record.id, quantity=0)
+            inventory_record = models.Inventory(
+                part_id=part_id, bin_id=bin_record.id, quantity=0
+            )
             db.add(inventory_record)
 
         if inferred_action == "IN":
@@ -122,7 +163,7 @@ def process_hardware_scan(payload: schemas.HardwareScan, db: Session = Depends(g
             bin_id=bin_record.id,
             tx_type=inferred_action,
             quantity=payload.quantity,
-            scanned_rfid_uid=payload.rfid_uid
+            scanned_rfid_uid=payload.rfid_uid,
         )
         db.add(new_tx)
 
@@ -130,10 +171,10 @@ def process_hardware_scan(payload: schemas.HardwareScan, db: Session = Depends(g
         db.commit()
 
         return {
-            "status": "success", 
-            "action": inferred_action, 
+            "status": "success",
+            "action": inferred_action,
             "new_quantity": inventory_record.quantity,
-            "part_id": part_id
+            "part_id": part_id,
         }
 
     except ValueError as ve:
@@ -141,4 +182,170 @@ def process_hardware_scan(payload: schemas.HardwareScan, db: Session = Depends(g
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail="Database transaction failed.") 
+        raise HTTPException(status_code=500, detail="Database transaction failed.")
+    
+@app.get("/api/v1/dashboard/kpis")
+def get_kpis(db: Session = Depends(get_db)):
+    total_parts = db.query(func.coalesce(func.sum(models.Inventory.quantity), 0)).scalar()
+    bins_active = db.query(models.Bin).filter(models.Bin.is_active == True).count()
+    critical_alerts = db.query(models.Inventory).filter(models.Inventory.quantity < 10).count()
+    
+    return {
+        "total_parts": int(total_parts),
+        "bins_active": bins_active,
+        "critical_alerts": critical_alerts,
+        "last_update_seconds": 0.4  # Or compute actual time elapsed since last transaction
+    }
+@app.get("/api/v1/dashboard/activity")
+def get_recent_activity(db: Session = Depends(get_db)):
+    # Join with Part and Bin to print user-friendly logs
+    rows = (
+        db.query(models.Transaction, models.Part, models.Bin)
+        .join(models.Part, models.Part.id == models.Transaction.part_id)
+        .join(models.Bin, models.Bin.id == models.Transaction.bin_id)
+        .order_by(models.Transaction.tx_timestamp.desc())
+        .limit(5)
+        .all()
+    )
+    
+    activities = []
+    for tx, part, bin_ in rows:
+        activities.append({
+            "icon": "add" if tx.tx_type == "IN" else "remove",
+            "title": f"{tx.quantity} units {'added' if tx.tx_type == 'IN' else 'removed'}",
+            "sub": f"{part.name} • Bin {bin_.bin_label} • UID {tx.scanned_rfid_uid}",
+            "time": tx.tx_timestamp.isoformat()
+        })
+    return {"activities": activities}
+
+@app.get("/api/v1/audit/movements", response_model=schemas.MovementsResponse)
+def get_movements(page: int = 1, limit: int = 25, db: Session = Depends(get_db)):
+    query = (
+        db.query(models.Transaction, models.Part, models.Bin)
+        .join(models.Part, models.Part.id == models.Transaction.part_id)
+        .join(models.Bin, models.Bin.id == models.Transaction.bin_id)
+        .order_by(models.Transaction.tx_timestamp.desc())
+    )
+
+    total = query.count()
+    offset = (page - 1) * limit
+    items = query.offset(offset).limit(limit).all()
+
+    return {
+        "page": page,
+        "limit": limit,
+        "total": total,
+        "items": [
+            {
+                "timestamp": tx.tx_timestamp.isoformat(),
+                "name": part.name,
+                "bin": bin_.bin_label,
+                "action": tx.tx_type,
+                "uid": tx.scanned_rfid_uid,
+                "quantity": tx.quantity,
+            }
+            for tx, part, bin_ in items
+        ],
+    }
+
+
+@app.get("/api/v1/audit/summary", response_model=schemas.AuditSummaryResponse)
+def get_audit_summary(db: Session = Depends(get_db)):
+    today = datetime.now(timezone.utc).date()
+
+    todays_throughput = (
+        db.query(func.coalesce(func.sum(models.Transaction.quantity), 0))
+        .filter(func.date(models.Transaction.tx_timestamp) == today)
+        .scalar()
+    )
+
+    active_tag_uids = db.query(models.RFIDTag).count()
+
+    # Calculate inbound rate (percentage of today's IN transactions)
+    todays_total_tx = (
+        db.query(func.count(models.Transaction.id))
+        .filter(func.date(models.Transaction.tx_timestamp) == today)
+        .scalar()
+    )
+    todays_in_tx = (
+        db.query(func.count(models.Transaction.id))
+        .filter(
+            func.date(models.Transaction.tx_timestamp) == today,
+            models.Transaction.tx_type == "IN",
+        )
+        .scalar()
+    )
+    inbound_rate = round((todays_in_tx / todays_total_tx * 100), 1) if todays_total_tx > 0 else 0.0
+
+    return {
+        "todays_throughput": int(todays_throughput),
+        "active_tag_uids": active_tag_uids,
+        "inbound_rate": inbound_rate,
+    }
+
+
+@app.get("/api/v1/inventory/paginated", response_model=schemas.PaginatedInventoryResponse)
+def get_paginated_inventory(
+    page: int = 1,
+    limit: int = 10,
+    search: str = "",
+    status: str = "",
+    db: Session = Depends(get_db),
+):
+    """
+    Paginated inventory with optional search (by part name or SKU)
+    and status filtering (Critical, Low Stock, Optimal).
+    """
+    from sqlalchemy import or_
+
+    query = (
+        db.query(models.Inventory, models.Part, models.Bin)
+        .join(models.Part, models.Part.id == models.Inventory.part_id)
+        .join(models.Bin, models.Bin.id == models.Inventory.bin_id)
+    )
+
+    # Search filter: match part name or SKU (case-insensitive)
+    if search:
+        query = query.filter(
+            or_(
+                models.Part.name.ilike(f"%{search}%"),
+                models.Part.sku.ilike(f"%{search}%"),
+            )
+        )
+
+    # Fetch all matching rows (we need to compute status before filtering by it)
+    all_rows = query.all()
+
+    # Compute status for each row
+    def compute_status(qty: int) -> str:
+        if qty < 5:
+            return "Critical"
+        elif qty < 25:
+            return "Low Stock"
+        return "Optimal"
+
+    results = [
+        {
+            "name": part.name,
+            "sku": part.sku,
+            "bin": bin_.bin_label,
+            "qty": inv.quantity,
+            "status": compute_status(inv.quantity),
+        }
+        for inv, part, bin_ in all_rows
+    ]
+
+    # Status filter (applied after computation)
+    if status and status.lower() != "all":
+        results = [r for r in results if r["status"].lower() == status.lower()]
+
+    total = len(results)
+    offset = (page - 1) * limit
+    paginated = results[offset : offset + limit]
+
+    return {
+        "page": page,
+        "limit": limit,
+        "total": total,
+        "items": paginated,
+    }

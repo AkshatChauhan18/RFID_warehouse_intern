@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, String,DateTime,ForeignKey,CheckConstraint,Boolean
 from sqlalchemy.sql import func
+
 from sqlalchemy.orm import mapped_column,Mapped
 from app.database import Base, SessionLocal
 class Part(Base):

@@ -12,3 +12,11 @@ __pycache__/
 
 # Ignore Alembic local configuration cache
 alembic/.ini
+# Environment variables
+.env
+
+# Auto-generated route tree (regenerated on dev server start)
+src/routeTree.gen.ts
+
+# Lockfile (keep whichever package manager you use, ignore the other)
+bun.lock

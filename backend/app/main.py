@@ -5,6 +5,9 @@ from sqlalchemy.orm import Session
 from typing import List
 from sqlalchemy import func
 from app import models, schemas
+from fastapi import WebSocket, WebSocketDisconnect
+
+
 
 app = FastAPI(title="Warehouse Inventory API")
 
@@ -16,6 +19,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: list[WebSocket] = []
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+    async def broadcast(self, message: dict):
+        for connection in self.active_connections:
+            try:
+                await connection.send_json(message)
+            except Exception:
+                pass # Ignore dropped connections
+manager = ConnectionManager()
 
 
 # 2. Database Session Manager
@@ -25,6 +44,18 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+@app.websocket("/api/v1/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            # Echo back the received message (for testing)
+            await websocket.send_text(f"Message text was: {data}")
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
 
 
 # 3. API Endpoints
@@ -89,7 +120,7 @@ def enroll_rfid(payload: schemas.EnrollmentData, db: Session = Depends(get_db)):
 
 
 @app.post(("/api/v1/scan"), status_code=status.HTTP_201_CREATED)
-def process_hardware_scan(payload: schemas.HardwareScan, db: Session = Depends(get_db)):
+async def process_hardware_scan(payload: schemas.HardwareScan, db: Session = Depends(get_db)):
     bin_record = (
         db.query(models.Bin).filter(models.Bin.bin_label == payload.bin_label).first()
     )
@@ -169,6 +200,7 @@ def process_hardware_scan(payload: schemas.HardwareScan, db: Session = Depends(g
 
         # C. Commit everything simultaneously
         db.commit()
+        await manager.broadcast({"event": "inventory_updated"})
 
         return {
             "status": "success",
@@ -348,4 +380,4 @@ def get_paginated_inventory(
         "limit": limit,
         "total": total,
         "items": paginated,
-    }
+    }

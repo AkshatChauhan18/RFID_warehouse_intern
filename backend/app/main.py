@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List
@@ -381,3 +381,22 @@ def get_paginated_inventory(
         "total": total,
         "items": paginated,
     }
+
+
+@app.post("/api/v1/enrollment-scan")
+async def receive_enrollment_scan(request: Request):
+    """
+    Receives raw JSON from the Zebra FX7500 and simply prints it.
+    Does not modify the database.
+    """
+    try:
+        payload = await request.json()
+        print("\n" + "="*50)
+        print("🔍 ZEBRA ENROLLMENT SCAN RECEIVED:")
+        import json
+        print(json.dumps(payload, indent=2))
+        print("="*50 + "\n")
+        return {"status": "success", "message": "Payload printed to terminal"}
+    except Exception as e:
+        print(f"Error reading Zebra payload: {e}")
+        return {"status": "error", "message": str(e)}

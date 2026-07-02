@@ -3,59 +3,33 @@ import signal
 import sys
 import paho.mqtt.client as mqtt
 
-# ==========================================================
-# MQTT Configuration
-# ==========================================================
-
 BROKER = "localhost"
 PORT = 1883
-
 CONTROL_TOPIC = "c-req"
 RESPONSE_TOPIC = "c-res"
 DATA_TOPIC = "d-evt"
 MANAGEMENT_TOPIC = "m-evt"
 
-# ==========================================================
-# Commands
-# ==========================================================
 
 def start_inventory(client):
     command = {
         "command": "start",
         "command_id": "1",
-        "payload": {
-            "doNotPersistState": True
-        }
+        "payload": {"doNotPersistState": True},
     }
 
-    info = client.publish(
-        CONTROL_TOPIC,
-        json.dumps(command),
-        qos=1
-    )
+    info = client.publish(CONTROL_TOPIC, json.dumps(command), qos=1)
 
     print(">> START command published")
 
 
 def stop_inventory(client):
-    command = {
-        "command": "stop",
-        "command_id": "2",
-        "payload": {}
-    }
+    command = {"command": "stop", "command_id": "2", "payload": {}}
 
-    client.publish(
-        CONTROL_TOPIC,
-        json.dumps(command),
-        qos=1
-    )
+    client.publish(CONTROL_TOPIC, json.dumps(command), qos=1)
 
     print(">> STOP command published")
 
-
-# ==========================================================
-# MQTT Callbacks
-# ==========================================================
 
 def on_connect(client, userdata, flags, reason_code, properties):
     print(f"\nConnected : {reason_code}")
@@ -89,21 +63,13 @@ def on_message(client, userdata, msg):
         print(msg.topic, msg.payload.decode(errors="ignore"))
         return
 
-    # ---------------------------------------------------
-    # Control Responses
-    # ---------------------------------------------------
-
     if msg.topic == RESPONSE_TOPIC:
 
-        print("\n========== CONTROL RESPONSE ==========")
+        print("\n---------CONTROL RESPONSE ----------")
         print(json.dumps(payload, indent=4))
         print("======================================")
 
         return
-
-    # ---------------------------------------------------
-    # Tag Reads
-    # ---------------------------------------------------
 
     if msg.topic == DATA_TOPIC:
 
@@ -112,9 +78,7 @@ def on_message(client, userdata, msg):
 
         tag = payload.get("data", {})
 
-        print(
-            "\n------------------------------"
-        )
+        print("\n------------------------------")
 
         print(f"Timestamp : {payload.get('timestamp')}")
         print(f"EPC       : {tag.get('idHex')}")
@@ -150,9 +114,7 @@ def on_message(client, userdata, msg):
 # Shutdown
 # ==========================================================
 
-client = mqtt.Client(
-    callback_api_version=mqtt.CallbackAPIVersion.VERSION2
-)
+client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
 
 client.on_connect = on_connect
 client.on_disconnect = on_disconnect

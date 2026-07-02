@@ -1,190 +1,350 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { AppShell } from "@/components/AppShell";
 
 export const Route = createFileRoute("/enrollment")({
   head: () => ({
     meta: [
-      { title: "RFID Enrollment | LOGISTIX" },
-      { name: "description", content: "Pre-commissioning workflow for high-frequency industrial RFID tags." },
+      { title: "Batch Enrollment | LOGISTIX" },
+      { name: "description", content: "Multi-tag commissioning workflow for high-density industrial RFID inventory." },
     ],
   }),
   component: EnrollmentPage,
 });
 
-const sessionLog = [
-  { uid: "E280-6890...4002", time: "14:22", name: "Precision Ball Bearing - X9", qty: "50", bin: "A-12", primary: true },
-  { uid: "E280-6890...3811", time: "14:18", name: "M12 Industrial Bolt Set", qty: "120", bin: "C-04", primary: false },
-  { uid: "E280-6890...9902", time: "14:15", name: "Lithium-Ion Pack 48V", qty: "4", bin: "HAZ-1", primary: false, dim: true },
-];
+/* ── Types ─────────────────────────────────────────────── */
+interface ScannedTag {
+  epc: string;
+  timestamp: number;      // epoch ms
+  antenna: number;
+  rssi: number;
+}
 
+// ? Added real API endpoints for backend communication
+const BASE_URL = process.env.FASTAPI_BASE_URL || "http://localhost:8000";
+
+async function apiStartEnrollment() {
+  return fetch(`${BASE_URL}/api/v1/enrollment/start`, { method: "POST" }).then(r => r.json());
+}
+async function apiConfirmEnrollment(partId: number) {
+  return fetch(`${BASE_URL}/api/v1/enrollment/confirm`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ part_id: partId }),
+  }).then(r => r.json());
+}
+async function apiCancelEnrollment() {
+  return fetch(`${BASE_URL}/api/v1/enrollment/cancel`, { method: "POST" }).then(r => r.json());
+}
+async function apiFetchParts() {
+  return fetch(`${BASE_URL}/api/v1/parts`).then(r => r.json());
+}
+
+/* ── Helpers ───────────────────────────────────────────── */
+function relativeTime(ts: number): string {
+  const delta = Math.round((Date.now() - ts) / 1000);
+  if (delta < 2) return "JUST NOW";
+  if (delta < 60) return `${delta}S AGO`;
+  return `${Math.floor(delta / 60)}M AGO`;
+}
+
+function formatDuration(seconds: number): string {
+  const m = Math.floor(seconds / 60).toString().padStart(2, "0");
+  const s = (seconds % 60).toString().padStart(2, "0");
+  return `${m}:${s}`;
+}
+
+/* ── Page ──────────────────────────────────────────────── */
 function EnrollmentPage() {
-  const [uid, setUid] = useState("E280-6890-0000-4005-A1C8-1F04");
+  const [isScanning, setIsScanning] = useState(false);
+  // ? Replaced mock tags with empty initial state
+  const [tags, setTags] = useState<ScannedTag[]>([]);
+  // ? Added state for dynamic parts dropdown
+  const [parts, setParts] = useState<{id: number; name: string; sku: string}[]>([]);
+  const [selectedPartId, setSelectedPartId] = useState(0);
   const [toast, setToast] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const commission = () => {
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+  /* ── Scan timer ─────────────────────────────────────── */
+  useEffect(() => {
+    if (isScanning) {
+      timerRef.current = setInterval(() => setElapsed((e) => e + 1), 1000);
+    } else if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [isScanning]);
+
+  // ? Load parts on component mount
+  useEffect(() => {
+    apiFetchParts().then(setParts);
+  }, []);
+
+  // ? Added WebSocket listener to receive tags in real-time
+  useEffect(() => {
+    if (!isScanning) return;
+    const wsUrl = BASE_URL.replace(/^http/, "ws") + "/api/v1/ws";
+    const ws = new WebSocket(wsUrl);
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === "enrollment_tag") {
+        setTags((prev) => [
+          { epc: data.uid, timestamp: Date.now(), antenna: data.antenna || 1, rssi: data.rssi || 0 },
+          ...prev,
+        ]);
+      }
+    };
+    return () => ws.close();
+  }, [isScanning]);
+
+  /* ── Toggle scanning ────────────────────────────────── */
+  const toggleScan = useCallback(async () => {
+    if (!isScanning) {
+      setElapsed(0);
+      setTags([]);
+      // ? Calls backend to start scanning
+      await apiStartEnrollment();
+    }
+    setIsScanning((s) => !s);
+  }, [isScanning]);
+
+  /* ── Confirm batch enrollment ───────────────────────── */
+  const confirmEnrollment = useCallback(async () => {
+    if (isScanning || tags.length === 0) return;
+    setProcessing(true);
+    // ? Sends selected part_id to backend for confirmation
+    const result = await apiConfirmEnrollment(selectedPartId);
+    setProcessing(false);
+    if (result.status === "success") {
       setToast(true);
       setTimeout(() => setToast(false), 4000);
-    }, 1000);
-  };
+    } else {
+      // ? Show error message from backend (e.g. duplicate tags)
+      alert(result.message);
+    }
+  }, [isScanning, tags.length, selectedPartId]);
+
+  /* ── Cancel ─────────────────────────────────────────── */
+  const cancel = useCallback(async () => {
+    // ? Calls backend to cancel scanning
+    await apiCancelEnrollment();
+    setIsScanning(false);
+    setTags([]);
+    setElapsed(0);
+  }, []);
+
+  const scanStatus = isScanning ? "Scanning" : tags.length > 0 ? "Completed" : "Idle";
 
   return (
     <AppShell>
-      <main className="flex-1 p-margin-desktop grid grid-cols-12 gap-lg">
-        {/* Left workspace */}
-        <div className="col-span-12 lg:col-span-8 flex flex-col gap-lg">
+      <main className="flex-1 p-margin-desktop grid grid-cols-12 gap-lg overflow-hidden" style={{ height: "calc(100vh - 64px)" }}>
+
+        {/* ────────── Left: Enrollment Controls (8 cols) ────────── */}
+        <div className="col-span-12 lg:col-span-8 flex flex-col gap-lg overflow-y-auto pr-sm">
+
+          {/* Header */}
           <div>
-            <h2 className="text-3xl font-semibold text-on-surface tracking-tight">RFID Enrollment</h2>
+            <h2 className="text-3xl font-semibold text-on-surface tracking-tight">Batch Enrollment</h2>
             <p className="text-on-surface-variant text-lg mt-1">
-              Pre-commissioning workflow for high-frequency industrial tags.
+              Multi-tag commissioning workflow for high-density inventory.
             </p>
           </div>
 
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-lg p-xl">
-            <div className="flex flex-col gap-xl">
-              <div className="flex flex-col gap-sm">
-                <div className="flex items-center justify-between">
-                  <label className="text-[12px] uppercase tracking-wider text-primary flex items-center gap-xs font-semibold">
-                    <span className="material-symbols-outlined text-[16px]">sensors</span>
-                    RFID Tag UID
-                  </label>
-                  <span className="text-[10px] font-mono text-secondary uppercase animate-pulse font-semibold">
-                    System Monitoring...
-                  </span>
-                </div>
-                <div className="relative">
-                  <input
-                    value={uid}
-                    onChange={(e) => setUid(e.target.value)}
-                    placeholder="Awaiting tag scan..."
-                    className="w-full bg-surface-container-low border border-outline-variant rounded p-md font-mono text-2xl text-primary focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
-                  />
-                  <div className="absolute right-md top-1/2 -translate-y-1/2 flex items-center gap-sm">
-                    <span className="text-secondary text-[11px] font-semibold tracking-wider">READY</span>
-                    <span className="material-symbols-outlined text-secondary" style={{ fontVariationSettings: "'FILL' 1" }}>
-                      check_circle
-                    </span>
-                  </div>
-                </div>
-                <p className="text-sm text-on-surface-variant italic">
-                  Hardware trigger active. Manual entry allowed for recovery.
-                </p>
-              </div>
+          {/* ── Live Counter Card ──────────────────────────────── */}
+          <div className="bg-surface-container-lowest border border-outline-variant rounded p-xl flex flex-col items-center justify-center gap-md text-center">
+            <label className="text-[12px] uppercase tracking-wider text-primary flex items-center gap-xs font-semibold">
+              <span className="material-symbols-outlined text-[16px]">sensors</span>
+              Live Enrollment
+            </label>
 
-              <div className="flex flex-col gap-sm">
-                <label className="text-[12px] uppercase tracking-wider text-on-surface flex items-center gap-xs font-semibold">
-                  <span className="material-symbols-outlined text-[16px]">category</span>
-                  Component Identification
-                </label>
-                <div className="relative">
-                  <select
-                    defaultValue="2"
-                    className="w-full bg-surface-container-lowest border border-outline-variant rounded p-md text-lg text-on-surface appearance-none focus:border-primary focus:outline-none cursor-pointer"
-                  >
-                    <option value="">Search system for component ID...</option>
-                    <option value="1">H-Type Hydraulic Cylinder (P-1044)</option>
-                    <option value="2">Reinforced Steel Gasket - 40mm (S-0922)</option>
-                    <option value="3">Micro-Processor Fan Unit (E-8832)</option>
-                    <option value="4">Pneumatic Actuator Assembly (P-1120)</option>
-                  </select>
-                  <span className="absolute right-md top-1/2 -translate-y-1/2 material-symbols-outlined pointer-events-none text-on-surface-variant">
-                    expand_more
-                  </span>
-                </div>
+            <div className="flex flex-col gap-2">
+              <div className="text-[64px] font-bold text-primary leading-none tabular-nums">
+                {tags.length}
               </div>
+              <p className="text-xl font-semibold text-on-surface uppercase tracking-tight">
+                Unique Tags Found
+              </p>
+            </div>
 
-              <button
-                onClick={commission}
-                disabled={loading}
-                className="w-full bg-primary text-on-primary py-md rounded-lg text-xl font-semibold flex items-center justify-center gap-md hover:opacity-90 active:scale-[0.99] transition-all disabled:opacity-70"
-              >
-                <span className={`material-symbols-outlined ${loading ? "animate-spin" : ""}`}>
-                  {loading ? "sync" : "link"}
+            {/* Status badge */}
+            <div className={`mt-2 flex items-center gap-2 px-4 py-2 rounded-full border border-outline-variant ${isScanning ? "bg-primary-fixed" : "bg-surface-container-low"}`}>
+              <span className={`w-2.5 h-2.5 rounded-full ${isScanning ? "bg-primary animate-pulse" : tags.length > 0 ? "bg-green-500" : "bg-secondary"}`} />
+              <span className="text-[11px] uppercase tracking-widest font-semibold text-on-surface-variant">
+                {scanStatus}
+              </span>
+            </div>
+          </div>
+
+          {/* ── Controls Form ─────────────────────────────────── */}
+          <div className="bg-surface-container-lowest border border-outline-variant rounded p-xl flex flex-col gap-xl">
+
+            {/* Start / Stop button */}
+            <button
+              onClick={toggleScan}
+              className={`w-full py-xl border-2 border-primary font-semibold text-2xl rounded flex items-center justify-center gap-md transition-all active:scale-[0.99] ${
+                isScanning
+                  ? "bg-primary text-on-primary"
+                  : "text-primary hover:bg-primary hover:text-on-primary"
+              }`}
+              style={isScanning ? { animation: "pulse 2s cubic-bezier(0.4,0,0.6,1) infinite" } : undefined}
+            >
+              <span className="material-symbols-outlined text-[28px]">
+                {isScanning ? "sensors" : "radar"}
+              </span>
+              {isScanning ? "STOP SCANNING" : "START ENROLLMENT"}
+            </button>
+
+            {/* Part selector */}
+            <div className="flex flex-col gap-sm">
+              <label className="text-[12px] uppercase tracking-wider text-on-surface flex items-center gap-xs font-semibold">
+                <span className="material-symbols-outlined text-[16px]">category</span>
+                Select Part to Link
+              </label>
+              <div className="relative">
+                <select
+                  // ? Bind select value to state
+                  disabled={isScanning}
+                  value={selectedPartId}
+                  onChange={(e) => setSelectedPartId(Number(e.target.value))}
+                  className="w-full bg-surface-container-low border border-outline-variant rounded p-md text-lg text-on-surface appearance-none focus:border-primary focus:outline-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <option value={0}>Select system component ID...</option>
+                  {/* ? Dynamically render parts from database */}
+                  {parts.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>
+                  ))}
+                </select>
+                <span className="absolute right-md top-1/2 -translate-y-1/2 material-symbols-outlined pointer-events-none text-on-surface-variant">
+                  expand_more
                 </span>
-                {loading ? "PROCESSING" : "COMMISSION TAG"}
+              </div>
+            </div>
+
+            {/* Confirm / Cancel */}
+            <div className="grid grid-cols-2 gap-md pt-md border-t border-outline-variant">
+              <button
+                onClick={confirmEnrollment}
+                disabled={processing || isScanning || tags.length === 0}
+                className="bg-primary text-on-primary py-md rounded text-[12px] uppercase tracking-widest font-semibold hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span className={`material-symbols-outlined ${processing ? "animate-spin" : ""}`}>
+                  {processing ? "sync" : "verified"}
+                </span>
+                {processing ? "Processing" : "Confirm Enrollment"}
+              </button>
+              <button
+                onClick={cancel}
+                className="bg-surface-container-highest text-secondary py-md rounded text-[12px] uppercase tracking-widest font-semibold hover:bg-surface-variant active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+              >
+                <span className="material-symbols-outlined">close</span>
+                Cancel
               </button>
             </div>
           </div>
 
+          {/* ── Hardware Status Bar ───────────────────────────── */}
           <div className="flex flex-wrap items-center gap-xl bg-surface-container border border-outline-variant px-lg py-md rounded">
             <div className="flex items-center gap-sm">
               <div className="w-2.5 h-2.5 rounded-full bg-secondary" />
-              <span className="text-[11px] uppercase tracking-wider font-semibold">Antenna 01: ONLINE</span>
+              <span className="text-[11px] uppercase tracking-wider font-semibold">Antenna Array: Active</span>
             </div>
             <div className="flex items-center gap-sm">
               <span className="material-symbols-outlined text-[18px] text-on-surface-variant">signal_cellular_alt</span>
-              <span className="text-[11px] text-on-surface-variant uppercase tracking-wider font-semibold">-42dBm</span>
+              <span className="text-[11px] text-on-surface-variant uppercase tracking-wider font-semibold">98% Sig. Strength</span>
             </div>
             <div className="ml-auto flex items-center gap-sm text-primary">
               <span className="material-symbols-outlined text-[18px]">sync</span>
-              <span className="text-[11px] uppercase tracking-wider font-semibold">Last Sync: 2s ago</span>
+              <span className="text-[11px] uppercase tracking-wider font-semibold">Last Sync: Live</span>
             </div>
           </div>
         </div>
 
-        {/* Right session info */}
-        <div className="col-span-12 lg:col-span-4 flex flex-col gap-lg">
-          <div className="flex items-center justify-between border-b border-outline-variant pb-sm">
-            <h3 className="text-[12px] text-on-surface uppercase tracking-widest font-bold">Session History</h3>
-            <span className="bg-primary-fixed text-on-primary-fixed px-2 py-0.5 rounded text-[10px] font-bold">12 TOTAL</span>
+        {/* ────────── Right: Live Tags (4 cols) ────────── */}
+        <div className="col-span-12 lg:col-span-4 flex flex-col bg-surface-container-low border-l border-outline-variant -my-margin-desktop p-margin-desktop overflow-hidden">
+
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-outline-variant pb-sm mb-md">
+            <h3 className="text-[12px] text-on-surface uppercase tracking-widest font-bold">Live Tags</h3>
+            <span className="bg-primary-container text-on-primary-container px-2 py-0.5 rounded text-[10px] font-bold">
+              {tags.length} TAGS
+            </span>
           </div>
-          <div className="flex flex-col gap-sm">
-            {sessionLog.map((l) => (
+
+          {/* Tag stream */}
+          <div className="flex flex-col gap-sm flex-grow overflow-y-auto pr-2">
+            {tags.length === 0 && (
+              <div className="flex flex-col items-center justify-center gap-md py-xl text-center opacity-60">
+                <span className="material-symbols-outlined text-[48px] text-secondary">contactless</span>
+                <p className="text-sm text-on-surface-variant">No tags scanned yet.<br />Press Start Enrollment to begin.</p>
+              </div>
+            )}
+            {tags.map((tag, i) => (
               <div
-                key={l.uid}
-                className={`bg-surface-container-lowest border-l-4 ${l.primary ? "border-primary" : "border-secondary"} p-md flex flex-col gap-xs transition-colors hover:bg-surface-container-low ${l.dim ? "opacity-70" : ""}`}
+                key={tag.epc}
+                className="bg-surface-container-lowest border border-outline-variant p-md flex flex-col gap-xs transition-all hover:border-primary"
+                style={{ opacity: Math.max(0.5, 1 - i * 0.1) }}
               >
-                <div className="flex justify-between items-start">
-                  <p className={`font-mono text-[12px] ${l.primary ? "text-primary" : "text-secondary"}`}>{l.uid}</p>
-                  <span className="text-[11px] text-on-surface-variant font-mono">{l.time}</span>
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-green-500" />
+                    <p className="font-mono text-[12px] text-primary font-bold">{tag.epc}</p>
+                  </div>
+                  <span className="text-[10px] text-on-surface-variant font-mono">{relativeTime(tag.timestamp)}</span>
                 </div>
-                <p className="font-bold text-on-surface">{l.name}</p>
                 <div className="flex gap-sm mt-1">
-                  <span className="bg-surface-container px-2 py-0.5 rounded text-[10px] font-mono text-secondary border border-outline-variant">QTY: {l.qty}</span>
-                  <span className="bg-surface-container px-2 py-0.5 rounded text-[10px] font-mono text-secondary border border-outline-variant">BIN: {l.bin}</span>
+                  <span className="bg-surface-container-low px-2 py-0.5 rounded text-[10px] font-mono text-on-surface-variant border border-outline-variant">
+                    ANTENNA {String(tag.antenna).padStart(2, "0")}
+                  </span>
+                  <span className="bg-surface-container-low px-2 py-0.5 rounded text-[10px] font-mono text-on-surface-variant border border-outline-variant">
+                    {tag.rssi}dBm
+                  </span>
                 </div>
               </div>
             ))}
           </div>
 
-          <div className="bg-surface-container-high p-lg border border-outline-variant rounded">
-            <p className="text-[12px] text-on-surface-variant uppercase tracking-widest mb-md font-bold text-center">
-              Session Reliability
-            </p>
-            <div className="h-3 w-full bg-surface-container-lowest rounded-full overflow-hidden mb-md border border-outline-variant">
-              <div className="h-full bg-primary" style={{ width: "99.8%" }} />
+          {/* ── Enrollment Summary Card ───────────────────── */}
+          <div className="mt-md bg-inverse-surface text-inverse-on-surface p-md rounded shadow-md">
+            <p className="text-[10px] uppercase tracking-widest mb-md opacity-70 font-bold">Enrollment Summary</p>
+            <div className="grid grid-cols-2 gap-lg">
+              <div>
+                <p className="text-[20px] font-bold tabular-nums">{tags.length}</p>
+                <p className="text-[10px] uppercase opacity-60">Unique Tags</p>
+              </div>
+              <div>
+                <p className="text-[20px] font-bold tabular-nums">{formatDuration(elapsed)}</p>
+                <p className="text-[10px] uppercase opacity-60">Scan Time</p>
+              </div>
             </div>
-            <div className="flex justify-between px-1">
-              {[
-                { l: "Read Rate", v: "99.8%", c: "text-primary" },
-                { l: "Collisions", v: "0", c: "text-on-surface" },
-                { l: "Uptime", v: "4h 22m", c: "text-on-surface" },
-              ].map((m) => (
-                <div key={m.l} className="text-center">
-                  <p className="text-[10px] text-on-surface-variant font-bold uppercase">{m.l}</p>
-                  <p className={`font-mono ${m.c}`}>{m.v}</p>
-                </div>
-              ))}
+            <div className="mt-md pt-md border-t border-white/10 flex items-center justify-between">
+              <span className="text-[10px] uppercase font-bold tracking-widest text-primary-fixed-dim">
+                Status: {scanStatus}
+              </span>
+              <span className="material-symbols-outlined text-[16px] text-primary-fixed-dim">verified_user</span>
             </div>
           </div>
         </div>
       </main>
 
-      {/* Toast */}
+      {/* ── Success Toast ────────────────────────────────── */}
       <div
-        className={`fixed bottom-margin-desktop right-margin-desktop z-50 transition-all duration-300 ease-in-out ${toast ? "translate-y-0 opacity-100" : "translate-y-32 opacity-0 pointer-events-none"}`}
+        className={`fixed bottom-margin-desktop right-margin-desktop z-50 transition-all duration-300 ease-in-out ${
+          toast ? "translate-y-0 opacity-100" : "translate-y-32 opacity-0 pointer-events-none"
+        }`}
       >
         <div className="bg-surface-container-lowest shadow-lg border border-primary px-lg py-md rounded-lg flex items-center gap-md">
           <span className="material-symbols-outlined text-primary text-[24px]" style={{ fontVariationSettings: "'FILL' 1" }}>
             check_circle
           </span>
           <div>
-            <p className="text-[12px] font-bold text-primary uppercase tracking-wider">Commissioning Successful</p>
-            <p className="text-sm text-on-surface">Tag linked to inventory system.</p>
+            <p className="text-[12px] font-bold text-primary uppercase tracking-wider">Batch Commissioned</p>
+            <p className="text-sm text-on-surface">{tags.length} tags successfully linked to inventory.</p>
           </div>
           <button className="ml-lg text-secondary hover:text-on-surface" onClick={() => setToast(false)}>
             <span className="material-symbols-outlined text-[18px]">close</span>

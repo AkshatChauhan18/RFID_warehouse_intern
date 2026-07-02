@@ -7,18 +7,15 @@ from sqlalchemy import func
 from app import models, schemas
 from fastapi import WebSocket, WebSocketDisconnect
 
+# ? Added imports for MQTT client and enrollment service
+import asyncio
+import logging
+from contextlib import asynccontextmanager
+from app.zebra_client import ZebraMQTTClient
+from app.enrollment_service import EnrollmentService
 
+logging.basicConfig(level=logging.INFO)
 
-app = FastAPI(title="Warehouse Inventory API")
-
-# 1. CORS Configuration (Allows React to connect)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # In production, restrict this to your React app's URL
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 class ConnectionManager:
     def __init__(self):
         self.active_connections: list[WebSocket] = []
@@ -35,6 +32,29 @@ class ConnectionManager:
             except Exception:
                 pass # Ignore dropped connections
 manager = ConnectionManager()
+
+# ? Added lifespan to manage MQTT client background thread and enrollment service
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    mqtt_client = ZebraMQTTClient(broker="localhost", port=1883)
+    enrollment_service = EnrollmentService(mqtt_client=mqtt_client, ws_manager=manager)
+    mqtt_client.on_tag_callback = enrollment_service.on_tag_discovered
+    enrollment_service.set_event_loop(asyncio.get_running_loop())
+    app.state.enrollment_service = enrollment_service
+    mqtt_client.connect()
+    yield
+    mqtt_client.disconnect()
+
+app = FastAPI(title="Warehouse Inventory API", lifespan=lifespan)
+
+# ? Restored CORS configuration that was accidentally removed
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # 2. Database Session Manager
@@ -383,20 +403,29 @@ def get_paginated_inventory(
     }
 
 
-@app.post("/api/v1/enrollment-scan")
-async def receive_enrollment_scan(request: Request):
-    """
-    Receives raw JSON from the Zebra FX7500 and simply prints it.
-    Does not modify the database.
-    """
-    try:
-        payload = await request.json()
-        print("\n" + "="*50)
-        print("🔍 ZEBRA ENROLLMENT SCAN RECEIVED:")
-        import json
-        print(json.dumps(payload, indent=2))
-        print("="*50 + "\n")
-        return {"status": "success", "message": "Payload printed to terminal"}
-    except Exception as e:
-        print(f"Error reading Zebra payload: {e}")
-        return {"status": "error", "message": str(e)}
+# ── Batch Enrollment Endpoints ────────────────────────
+# ? Added 4 new endpoints for the batch enrollment workflow
+
+@app.post("/api/v1/enrollment/start", response_model=schemas.EnrollmentStartResponse)
+async def start_enrollment(request: Request):
+    service = request.app.state.enrollment_service
+    await service.start()
+    return {"status": "started"}
+
+@app.post("/api/v1/enrollment/confirm", response_model=schemas.EnrollmentConfirmResponse)
+async def confirm_enrollment(body: schemas.EnrollmentConfirm, request: Request, db: Session = Depends(get_db)):
+    service = request.app.state.enrollment_service
+    result = await service.confirm(part_id=body.part_id, db=db)
+    return result
+
+@app.post("/api/v1/enrollment/cancel", response_model=schemas.EnrollmentCancelResponse)
+async def cancel_enrollment(request: Request):
+    service = request.app.state.enrollment_service
+    await service.cancel()
+    return {"status": "cancelled"}
+
+@app.get("/api/v1/enrollment/pending")
+async def get_pending_tags(request: Request):
+    service = request.app.state.enrollment_service
+    uids = service.get_pending_uids()
+    return {"uids": uids, "count": len(uids), "is_active": service.is_active}

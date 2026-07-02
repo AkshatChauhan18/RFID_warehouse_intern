@@ -67,3 +67,20 @@ class AuditSummaryResponse(BaseModel):
     todays_throughput: int = Field(..., description="Total units moved today")
     active_tag_uids: int = Field(..., description="Number of enrolled RFID tags")
     inbound_rate: float = Field(..., description="Percentage of today's movements that were IN")
+
+# ? Added models for the batch enrollment workflow
+
+class EnrollmentConfirm(BaseModel):
+    part_id: int = Field(..., description="Part ID to link all scanned tags to")
+
+class EnrollmentStartResponse(BaseModel):
+    status: str
+
+class EnrollmentConfirmResponse(BaseModel):
+    status: str
+    count: int
+    message: str = ""
+    duplicates: list[str] = []
+
+class EnrollmentCancelResponse(BaseModel):
+    status: str

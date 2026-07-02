@@ -11,6 +11,7 @@ RESPONSE_TOPIC = "c-res"
 DATA_TOPIC = "d-evt"
 MANAGEMENT_TOPIC = "m-evt"
 
+
 class ZebraMQTTClient:
     # ? Initializes the MQTT client with a callback for tag events
     def __init__(self, broker="localhost", port=1883, on_tag_callback=None):
@@ -19,7 +20,7 @@ class ZebraMQTTClient:
         self.on_tag_callback = on_tag_callback
 
         self._client = mqtt.Client(
-            callback_api_version=mqtt.CallbackAPIVersion.VERSION2
+            callback_api_version=mqtt.CallbackAPIVersion.VERSION2  # type: ignore
         )
         self._client.on_connect = self._on_connect
         self._client.on_disconnect = self._on_disconnect
@@ -86,7 +87,7 @@ class ZebraMQTTClient:
             uid = tag.get("idHex")
             antenna = tag.get("antenna", 0)
             rssi = tag.get("peakRssi", 0)
-            
+
             # ? Calls the callback when a new tag is scanned
             if uid and self.on_tag_callback:
                 self.on_tag_callback(uid, antenna, rssi)

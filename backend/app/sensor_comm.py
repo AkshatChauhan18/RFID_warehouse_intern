@@ -114,8 +114,7 @@ def on_message(client, userdata, msg):
 # Shutdown
 # ==========================================================
 
-client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
-
+client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2)  # type: ignore
 client.on_connect = on_connect
 client.on_disconnect = on_disconnect
 client.on_message = on_message

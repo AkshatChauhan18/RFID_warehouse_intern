@@ -17,8 +17,8 @@ class RFIDTag(Base):
     rfid_uid: Mapped[str] = mapped_column(String(100), primary_key=True, index=True)
     part_id: Mapped[int] = mapped_column(Integer, ForeignKey("parts.id", ondelete="CASCADE"), nullable=False)
     enrolled_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-class Bin(Base):
-    __tablename__ = "bins"
+class Area(Base):
+    __tablename__ = "area"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     bin_label: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
@@ -29,7 +29,7 @@ class Inventory(Base):
     __tablename__ = "inventory"
 
     part_id: Mapped[int] = mapped_column(Integer, ForeignKey("parts.id", ondelete="RESTRICT"), primary_key=True)
-    bin_id: Mapped[int] = mapped_column(Integer, ForeignKey("bins.id", ondelete="RESTRICT"), primary_key=True)
+    bin_id: Mapped[int] = mapped_column(Integer, ForeignKey("area.id", ondelete="RESTRICT"), primary_key=True)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     last_updated: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -42,7 +42,7 @@ class Transaction(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     part_id: Mapped[int] = mapped_column(Integer, ForeignKey("parts.id"))
-    bin_id: Mapped[int] = mapped_column(Integer, ForeignKey("bins.id"))
+    bin_id: Mapped[int] = mapped_column(Integer, ForeignKey("area.id"))
     tx_type: Mapped[str] = mapped_column(String(10), nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     scanned_rfid_uid: Mapped[str] = mapped_column(String(100), nullable=False)

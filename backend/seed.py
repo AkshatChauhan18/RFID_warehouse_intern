@@ -18,8 +18,8 @@ def seed_database():
         db.commit() # Commit to generate the IDs
 
         print("2. Creating Warehouse Locations (Bins)...")
-        b_alpha = models.Bin(bin_label="RACK-A-1", rfid_tag_id="BIN-A1-TAG")
-        b_beta = models.Bin(bin_label="RACK-B-1", rfid_tag_id="BIN-B1-TAG")
+        b_alpha = models.Area(bin_label="Zone_a", rfid_tag_id="BIN-A1-TAG")
+        b_beta = models.Area(bin_label="Zone_b", rfid_tag_id="BIN-B1-TAG")
         db.add_all([b_alpha, b_beta])
         db.commit()
 

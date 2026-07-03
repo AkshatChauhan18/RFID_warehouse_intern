@@ -34,8 +34,8 @@ class ConnectionManager:
             except Exception:
                 pass # Ignore dropped connections
 manager = ConnectionManager()
-low_stock=25
-critical=1
+low_stock=1
+critical=0
 # ? Added lifespan to manage MQTT client background thread and enrollment service
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -423,6 +423,44 @@ def get_paginated_inventory(
         "items": paginated,
     }
 
+
+# ── Heatmap Endpoint ─────────────────────────────────
+@app.get("/api/v1/heatmap", response_model=schemas.HeatmapResponse)
+def get_heatmap(db: Session = Depends(get_db)):
+    areas = db.query(models.Area).filter(models.Area.is_active == True).all()
+    inventory_counts = (
+        db.query(
+            models.Inventory.bin_id,
+            func.count(models.Inventory.part_id).label("part_count"),
+            func.sum(models.Inventory.quantity).label("total_qty"),
+        )
+        .group_by(models.Inventory.bin_id)
+        .all()
+    )
+    inv_by_bin = {r.bin_id: {"part_count": r.part_count, "total_qty": int(r.total_qty)} for r in inventory_counts}
+
+    rows, cols = 4, 4
+    zones = []
+    for i, area in enumerate(areas[:rows * cols]):
+        inv = inv_by_bin.get(area.id)
+        if inv is None or inv["total_qty"] == 0:
+            status = "empty"
+        elif inv["total_qty"] < critical:
+            status = "critical"
+        elif inv["total_qty"] < low_stock:
+            status = "partial"
+        else:
+            status = "full"
+        zones.append({
+            "label": area.bin_label,
+            "row": i // cols,
+            "col": i % cols,
+            "status": status,
+            "item_count": inv["total_qty"] if inv else 0,
+            "part_count": inv["part_count"] if inv else 0,
+        })
+
+    return {"rows": rows, "cols": cols, "zones": zones}
 
 # ── Batch Enrollment Endpoints ────────────────────────
 # ? Added 4 new endpoints for the batch enrollment workflow

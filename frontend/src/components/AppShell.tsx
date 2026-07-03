@@ -84,9 +84,9 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
           </div>
           <div className="flex items-center gap-md">
-            <button className="w-10 h-10 flex items-center justify-center text-on-secondary-fixed-variant hover:bg-surface-container transition-colors rounded">
+            {/* <button className="w-10 h-10 flex items-center justify-center text-on-secondary-fixed-variant hover:bg-surface-container transition-colors rounded">
               <span className="material-symbols-outlined">notifications</span>
-            </button>
+            </button> */}
             <div className="flex items-center gap-sm px-md py-1 border-x border-outline-variant">
               <div className="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center">
                 <span className="material-symbols-outlined text-primary">account_circle</span>

@@ -84,3 +84,16 @@ class EnrollmentConfirmResponse(BaseModel):
 
 class EnrollmentCancelResponse(BaseModel):
     status: str
+
+class HeatmapZone(BaseModel):
+    label: str
+    row: int
+    col: int
+    status: str  # "full" | "partial" | "critical" | "empty"
+    item_count: int
+    part_count: int
+
+class HeatmapResponse(BaseModel):
+    rows: int
+    cols: int
+    zones: list[HeatmapZone]

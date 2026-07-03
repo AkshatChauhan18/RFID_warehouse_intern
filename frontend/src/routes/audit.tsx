@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
 import { getMovements, getAuditSummary } from "@/lib/warehouse.functions";
 
@@ -70,6 +70,33 @@ export const Route = createFileRoute("/audit")({
 //   { t: "14:19:59.18", name: "Fiber Optic Patch 2m", bin: "BIN-012-C", action: "OUT", uid: "UID_5541_221S" },
 //   { t: "14:19:22.44", name: "Steel Fastener M8", bin: "BIN-099-X", action: "IN", uid: "UID_3300_123F" },
 // ];
+
+function useNow(interval = 1000) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), interval);
+    return () => clearInterval(id);
+  }, [interval]);
+  return now;
+}
+
+function LiveTime({ timestamp }: { timestamp: string }) {
+  const now = useNow();
+  const t = new Date(timestamp).getTime();
+  const delta = Math.round((now - t) / 1000);
+  let display: string;
+  if (delta < 0) display = "JUST NOW";
+  else if (delta < 2) display = "JUST NOW";
+  else if (delta < 60) display = `${delta}S AGO`;
+  else if (delta < 3600) display = `${Math.floor(delta / 60)}M AGO`;
+  else display = new Date(timestamp).toLocaleTimeString();
+  return <span className={delta < 60 ? "text-primary font-bold" : ""}>{display}</span>;
+}
+
+function LiveSync() {
+  const now = useNow();
+  return <span className="text-xs font-mono text-secondary">SYNC: {new Date(now).toLocaleTimeString()}</span>;
+}
 
 function AuditPage() {
   const [page, setPage] = useState(1);
@@ -224,7 +251,7 @@ function AuditPage() {
                 <span className="flex items-center gap-2 text-xs text-secondary font-semibold">
                   <span className="w-2 h-2 rounded-full bg-green-500" /> Live Monitoring
                 </span>
-                <span className="text-xs font-mono text-secondary">SYNC: 14:22:01.08</span>
+                <LiveSync />
               </div>
             </div>
             <div className="overflow-x-auto">
@@ -262,8 +289,8 @@ function AuditPage() {
                 <tbody className="divide-y divide-outline-variant">
                   {movements.items.map((e, i) => (
                     <tr key={`${e.uid}-${i}`} className="hover:bg-surface-container-low transition-colors">
-                      <td className="px-lg py-sm font-mono text-sm text-secondary">
-                        {new Date(e.timestamp).toLocaleTimeString()}
+                      <td className="px-lg py-sm font-mono text-sm">
+                        <LiveTime timestamp={e.timestamp} />
                       </td>
                       <td className="px-lg py-sm font-bold text-sm">{e.name}</td>
                       <td className="px-lg py-sm text-sm">{e.area}</td>

@@ -62,6 +62,23 @@ export async function fetchAuditSummary(): Promise<{
   return res.json();
 }
 
+export async function fetchHeatmap(): Promise<{
+  rows: number;
+  cols: number;
+  zones: {
+    label: string;
+    row: number;
+    col: number;
+    status: "full" | "partial" | "critical" | "empty";
+    item_count: number;
+    part_count: number;
+  }[];
+}> {
+  const res = await fetch(`${getBaseUrl()}/api/v1/heatmap`);
+  if (!res.ok) throw new Error(`Failed to fetch heatmap: ${res.status}`);
+  return res.json();
+}
+
 export async function fetchPaginatedInventory(params: {
   page: number;
   limit: number;

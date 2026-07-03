@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
-import { getInventory, getKpis, getActivity } from "@/lib/warehouse.functions";
+import { getInventory, getKpis, getActivity, getHeatmap } from "@/lib/warehouse.functions";
 const inventoryQuery = queryOptions({
   queryKey: ["inventory"],
   queryFn: () => getInventory(),
@@ -13,6 +13,10 @@ const kpisQuery = queryOptions({
 const activityQuery = queryOptions({
   queryKey: ["activity"],
   queryFn: () => getActivity(),
+});
+const heatmapQuery = queryOptions({
+  queryKey: ["heatmap"],
+  queryFn: () => getHeatmap(),
 });
 
 function DashboardSkeleton() {
@@ -51,6 +55,7 @@ export const Route = createFileRoute("/")({
     context.queryClient.ensureQueryData(inventoryQuery);
     context.queryClient.ensureQueryData(kpisQuery);
     context.queryClient.ensureQueryData(activityQuery);
+    context.queryClient.ensureQueryData(heatmapQuery);
   },
   head: () => ({
     meta: [
@@ -113,6 +118,7 @@ function DashboardPage() {
   const { data: inventoryData } = useSuspenseQuery(inventoryQuery);
   const { data: kpis } = useSuspenseQuery(kpisQuery);
   const { data: activity } = useSuspenseQuery(activityQuery);
+  const { data: heatmap } = useSuspenseQuery(heatmapQuery);
   // fallback icon selection helper
   const getIcon = (name: string) => {
     if (name.toLowerCase().includes("bolt")) return "settings_input_component";
@@ -264,40 +270,37 @@ function DashboardPage() {
             <div className="bg-surface-container-lowest border border-outline-variant rounded p-lg shadow-sm">
               <div className="flex justify-between items-center mb-md">
                 <h4 className="text-lg font-bold">Bay Heatmap</h4>
-                <span className="material-symbols-outlined text-secondary cursor-pointer hover:text-primary transition-colors">open_in_new</span>
+                <span className="text-[11px] text-secondary font-semibold font-mono">{heatmap.zones.length} zones active</span>
               </div>
               <div className="aspect-square bg-surface-container rounded border border-outline-variant relative p-md grid grid-cols-4 grid-rows-4 gap-xs">
-                {[
-                  { zone: "A1", status: "full" },
-                  { zone: "A2", status: "full" },
-                  { zone: "A3", status: "partial" },
-                  { zone: "A4", status: "full" },
-                  { zone: "B1", status: "full" },
-                  { zone: "B2", status: "critical" },
-                  { zone: "B3", status: "full" },
-                  { zone: "B4", status: "full" },
-                  { zone: "C1", status: "full" },
-                  { zone: "C2", status: "full" },
-                  { zone: "C3", status: "empty" },
-                  { zone: "C4", status: "full" },
-                  { zone: "D1", status: "partial" },
-                  { zone: "D2", status: "full" },
-                  { zone: "D3", status: "full" },
-                  { zone: "D4", status: "full" },
-                ].map((cell, i) => {
-                  const cls =
-                    cell.status === "full" ? "bg-green-100 border-green-200" :
-                    cell.status === "partial" ? "bg-primary-fixed border-primary" :
-                    cell.status === "critical" ? "bg-primary border-primary animate-pulse" :
-                    "bg-surface-container border-outline-variant";
-                  return (
-                    <div key={i} className={`relative border rounded-sm flex items-center justify-center group ${cls}`}>
-                      <span className="text-[9px] font-mono text-secondary opacity-0 group-hover:opacity-100 transition-opacity font-bold select-none">
-                        {cell.zone}
-                      </span>
-                    </div>
-                  );
-                })}
+                {heatmap.zones.length === 0 ? (
+                  <div className="col-span-4 row-span-4 flex flex-col items-center justify-center text-secondary gap-sm">
+                    <span className="material-symbols-outlined text-[40px] text-outline-variant">grid_view</span>
+                    <p className="text-[11px] uppercase tracking-wider font-semibold">No zones configured</p>
+                  </div>
+                ) : (
+                  Array.from({ length: heatmap.rows * heatmap.cols }, (_, i) => {
+                    const cell = heatmap.zones.find((z) => z.row === Math.floor(i / heatmap.cols) && z.col === i % heatmap.cols);
+                    const cls = !cell ? "bg-surface-container border-outline-variant opacity-30"
+                      : cell.status === "full" ? "bg-green-100 border-green-200"
+                      : cell.status === "partial" ? "bg-primary-fixed border-primary"
+                      : cell.status === "critical" ? "bg-primary border-primary animate-pulse"
+                      : "bg-surface-container border-outline-variant";
+                    return (
+                      <div key={i} className={`relative border rounded-sm flex items-center justify-center group transition-all ${cls}`}>
+                        {cell ? (
+                          <>
+                            <div className="flex flex-col items-center">
+                              <span className="text-[9px] font-mono text-secondary font-bold select-none leading-tight">{cell.label}</span>
+                              <span className="text-[7px] text-secondary/60 font-mono mt-0.5">{cell.item_count}u</span>
+                            </div>
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors rounded-sm" />
+                          </>
+                        ) : null}
+                      </div>
+                    );
+                  })
+                )}
               </div>
               <div className="flex items-center justify-center gap-lg mt-md">
                 {[

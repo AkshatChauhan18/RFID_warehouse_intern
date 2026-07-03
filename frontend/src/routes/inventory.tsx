@@ -297,7 +297,7 @@ function InventoryPage() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-surface-container-low border-b border-outline-variant">
-                  {["Part Name & SKU", "Bin Location", "Quantity", "Status"].map(
+                  {["Part Name & SKU", "Area Location", "Quantity", "Status"].map(
                     (h, i) => (
                       <th
                         key={h}
@@ -329,7 +329,7 @@ function InventoryPage() {
                 ) : (
                   inventory.items.map((item, idx) => (
                     <tr
-                      key={`${item.sku}-${item.bin}-${idx}`}
+                      key={`${item.sku}-${item.area}-${idx}`}
                       className="hover:bg-surface-container-low transition-colors group"
                     >
                       {/* Part Name & SKU */}
@@ -344,10 +344,10 @@ function InventoryPage() {
                         </div>
                       </td>
 
-                      {/* Bin Location */}
+                      {/* Area Location */}
                       <td className="px-lg py-md">
                         <span className="font-mono text-sm bg-surface-container border border-outline-variant px-sm py-xs rounded">
-                          {item.bin}
+                          {item.area}
                         </span>
                       </td>
 

@@ -29,12 +29,12 @@ class EnrollmentService:
         # ? Clears the set and starts the inventory scan
         self._pending_uids.clear()
         self._is_active = True
-        self._mqtt.start_inventory()
+        # self._mqtt.start_inventory()
         logger.info("Enrollment: Started")
 
     async def cancel(self):
         # ? Stops scan and clears pending data without saving
-        self._mqtt.stop_inventory()
+        # self._mqtt.stop_inventory()
         self._pending_uids.clear()
         self._is_active = False
         logger.info("Enrollment: Cancelled")
@@ -70,7 +70,7 @@ class EnrollmentService:
             db.commit()
 
             count = len(self._pending_uids)
-            self._mqtt.stop_inventory()
+            # self._mqtt.stop_inventory()
             self._pending_uids.clear()
             self._is_active = False
             logger.info("Enrollment: Committed %d tags", count)

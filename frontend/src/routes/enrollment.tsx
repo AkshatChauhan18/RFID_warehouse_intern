@@ -110,8 +110,14 @@ function EnrollmentPage() {
       setTags([]);
       // ? Calls backend to start scanning
       await apiStartEnrollment();
+      setIsScanning(true);
+
     }
-    setIsScanning((s) => !s);
+    else{
+      // await apiCancelEnrollment();
+      setIsScanning(false);
+    }
+    // setIsScanning((s) => !s);
   }, [isScanning]);
 
   /* ── Confirm batch enrollment ───────────────────────── */

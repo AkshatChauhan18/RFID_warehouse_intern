@@ -27,7 +27,7 @@ class PartResponse(PartBase):
 
 class HardwareScan(BaseModel):
     rfid_uid: str = Field(..., description="UID of scanned rfid tag")
-    bin_label: str = Field(..., description="Label of bin")
+    area_label: str = Field(..., description="Label of the area") # ? Changed from bin_label
     quantity: int = Field(
         default=1, description="Quantity of parts scanned, default is 1"
     )
@@ -39,8 +39,8 @@ class EnrollmentData(BaseModel):
 class InventoryResponse(BaseModel):
     name: str = Field(..., description="Name of the catalog part")
     sku: str = Field(..., description="SKU of the catalog part")
-    bin: str = Field(..., description="Label of the physical warehouse bin")
-    qty: int = Field(..., description="Current quantity of this part in the bin")
+    area: str = Field(..., description="Label of the physical area") # ? Changed from bin
+    qty: int = Field(..., description="Current quantity of this part in the area")
     status: str = Field(..., description="Calculated status pill text (e.g., Optimal, Low Stock, Critical)")
 
 class PaginatedInventoryResponse(BaseModel):
@@ -52,7 +52,7 @@ class PaginatedInventoryResponse(BaseModel):
 class MovementItem(BaseModel):
     timestamp: str = Field(..., description="ISO format timestamp of the transaction")
     name: str = Field(..., description="Human-readable part name")
-    bin: str = Field(..., description="Bin label where movement occurred")
+    area: str = Field(..., description="Area label where movement occurred") # ? Changed from bin
     action: str = Field(..., description="IN or OUT")
     uid: str = Field(..., description="Scanned RFID tag UID")
     quantity: int = Field(..., description="Number of units moved")

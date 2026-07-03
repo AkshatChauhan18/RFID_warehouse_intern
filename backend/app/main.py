@@ -13,6 +13,8 @@ import logging
 from contextlib import asynccontextmanager
 from app.zebra_client import ZebraMQTTClient
 from app.enrollment_service import EnrollmentService
+# ? Import TrackingService
+from app.tracking_service import TrackingService
 
 logging.basicConfig(level=logging.INFO)
 
@@ -38,10 +40,28 @@ manager = ConnectionManager()
 async def lifespan(app: FastAPI):
     mqtt_client = ZebraMQTTClient(broker="localhost", port=1883)
     enrollment_service = EnrollmentService(mqtt_client=mqtt_client, ws_manager=manager)
-    mqtt_client.on_tag_callback = enrollment_service.on_tag_discovered
+    
+    # ? Instantiate tracking service
+    tracking_service = TrackingService(ws_manager=manager, enrollment_service=enrollment_service)
+    
+    # ? Master callback router
+    def _master_on_tag(uid: str, antenna: int, rssi: int):
+        if enrollment_service.is_active:
+            enrollment_service.on_tag_discovered(uid, antenna, rssi)
+        else:
+            tracking_service.on_tag_discovered(uid, antenna, rssi)
+
+    mqtt_client.on_tag_callback = _master_on_tag
+    
     enrollment_service.set_event_loop(asyncio.get_running_loop())
+    tracking_service.set_event_loop(asyncio.get_running_loop())
+    
     app.state.enrollment_service = enrollment_service
     mqtt_client.connect()
+    
+    # ? Automatically start inventory so it tracks 24/7 (except when enrollment overrides it)
+    mqtt_client.start_inventory()
+    
     yield
     mqtt_client.disconnect()
 
@@ -95,11 +115,11 @@ def get_all_parts(db: Session = Depends(get_db)):
 
 @app.get("/api/v1/inventory", response_model=List[schemas.InventoryResponse])
 def get_inventory(db: Session = Depends(get_db)):
-    # Join Inventory with Part and Bin tables
+    # Join Inventory with Part and Area tables
     rows = (
-        db.query(models.Inventory, models.Part, models.Bin)
+        db.query(models.Inventory, models.Part, models.Area)
         .join(models.Part, models.Part.id == models.Inventory.part_id)
-        .join(models.Bin, models.Bin.id == models.Inventory.bin_id)
+        .join(models.Area, models.Area.id == models.Inventory.bin_id)
         .all()
     )
     
@@ -107,11 +127,11 @@ def get_inventory(db: Session = Depends(get_db)):
         {
             "name": part.name,
             "sku": part.sku,
-            "bin": bin_.bin_label,
+            "area": area.bin_label, # ? Changed bin to area
             "qty": inv.quantity,
             "status": "Critical" if inv.quantity < 5 else "Low Stock" if inv.quantity < 25 else "Optimal"
         }
-        for inv, part, bin_ in rows
+        for inv, part, area in rows
     ]
 
 
@@ -141,12 +161,12 @@ def enroll_rfid(payload: schemas.EnrollmentData, db: Session = Depends(get_db)):
 
 @app.post(("/api/v1/scan"), status_code=status.HTTP_201_CREATED)
 async def process_hardware_scan(payload: schemas.HardwareScan, db: Session = Depends(get_db)):
-    bin_record = (
-        db.query(models.Bin).filter(models.Bin.bin_label == payload.bin_label).first()
+    area_record = (
+        db.query(models.Area).filter(models.Area.bin_label == payload.area_label).first()
     )
-    if not bin_record:
+    if not area_record:
         raise HTTPException(
-            status_code=404, detail=f"Bin {payload.bin_label} not found"
+            status_code=404, detail=f"Area {payload.area_label} not found"
         )
 
     tag_record = (
@@ -178,11 +198,11 @@ async def process_hardware_scan(payload: schemas.HardwareScan, db: Session = Dep
             if raw_time.tzinfo is None
             else raw_time
         )
-        if (now_utc - tx_time) < timedelta(seconds=3):
+        if (now_utc - tx_time) < timedelta(seconds=30):
             return {
                 "status": "ignored",
                 "reason": "cooldown_active",
-                "message": "Tag bouncing prevented.",
+                "message": "Tag bouncing prevented (30s cooldown).",
             }
         inferred_action = "OUT" if last_transaction.tx_type == "IN" else "IN"
     try:
@@ -190,16 +210,16 @@ async def process_hardware_scan(payload: schemas.HardwareScan, db: Session = Dep
             db.query(models.Inventory)
             .filter(
                 models.Inventory.part_id == part_id,
-                models.Inventory.bin_id == bin_record.id,
+                models.Inventory.bin_id == area_record.id,
             )
             .first()
         )
 
         if inventory_record is None:
             if inferred_action == "OUT":
-                raise ValueError("Cannot remove an item that is not in this bin.")
+                raise ValueError("Cannot remove an item that is not in this area.")
             inventory_record = models.Inventory(
-                part_id=part_id, bin_id=bin_record.id, quantity=0
+                part_id=part_id, bin_id=area_record.id, quantity=0
             )
             db.add(inventory_record)
 
@@ -211,7 +231,7 @@ async def process_hardware_scan(payload: schemas.HardwareScan, db: Session = Dep
             inventory_record.quantity -= payload.quantity
         new_tx = models.Transaction(
             part_id=part_id,
-            bin_id=bin_record.id,
+            bin_id=area_record.id,
             tx_type=inferred_action,
             quantity=payload.quantity,
             scanned_rfid_uid=payload.rfid_uid,
@@ -239,33 +259,33 @@ async def process_hardware_scan(payload: schemas.HardwareScan, db: Session = Dep
 @app.get("/api/v1/dashboard/kpis")
 def get_kpis(db: Session = Depends(get_db)):
     total_parts = db.query(func.coalesce(func.sum(models.Inventory.quantity), 0)).scalar()
-    bins_active = db.query(models.Bin).filter(models.Bin.is_active == True).count()
+    areas_active = db.query(models.Area).filter(models.Area.is_active == True).count()
     critical_alerts = db.query(models.Inventory).filter(models.Inventory.quantity < 10).count()
     
     return {
         "total_parts": int(total_parts),
-        "bins_active": bins_active,
+        "bins_active": areas_active, # Kept as bins_active so UI doesn't break
         "critical_alerts": critical_alerts,
         "last_update_seconds": 0.4  # Or compute actual time elapsed since last transaction
     }
 @app.get("/api/v1/dashboard/activity")
 def get_recent_activity(db: Session = Depends(get_db)):
-    # Join with Part and Bin to print user-friendly logs
+    # Join with Part and Area to print user-friendly logs
     rows = (
-        db.query(models.Transaction, models.Part, models.Bin)
+        db.query(models.Transaction, models.Part, models.Area)
         .join(models.Part, models.Part.id == models.Transaction.part_id)
-        .join(models.Bin, models.Bin.id == models.Transaction.bin_id)
+        .join(models.Area, models.Area.id == models.Transaction.bin_id)
         .order_by(models.Transaction.tx_timestamp.desc())
         .limit(5)
         .all()
     )
     
     activities = []
-    for tx, part, bin_ in rows:
+    for tx, part, area in rows:
         activities.append({
             "icon": "add" if tx.tx_type == "IN" else "remove",
             "title": f"{tx.quantity} units {'added' if tx.tx_type == 'IN' else 'removed'}",
-            "sub": f"{part.name} • Bin {bin_.bin_label} • UID {tx.scanned_rfid_uid}",
+            "sub": f"{part.name} • Area {area.bin_label} • UID {tx.scanned_rfid_uid}",
             "time": tx.tx_timestamp.isoformat()
         })
     return {"activities": activities}
@@ -273,9 +293,9 @@ def get_recent_activity(db: Session = Depends(get_db)):
 @app.get("/api/v1/audit/movements", response_model=schemas.MovementsResponse)
 def get_movements(page: int = 1, limit: int = 25, db: Session = Depends(get_db)):
     query = (
-        db.query(models.Transaction, models.Part, models.Bin)
+        db.query(models.Transaction, models.Part, models.Area)
         .join(models.Part, models.Part.id == models.Transaction.part_id)
-        .join(models.Bin, models.Bin.id == models.Transaction.bin_id)
+        .join(models.Area, models.Area.id == models.Transaction.bin_id)
         .order_by(models.Transaction.tx_timestamp.desc())
     )
 
@@ -291,12 +311,12 @@ def get_movements(page: int = 1, limit: int = 25, db: Session = Depends(get_db))
             {
                 "timestamp": tx.tx_timestamp.isoformat(),
                 "name": part.name,
-                "bin": bin_.bin_label,
+                "area": area.bin_label,
                 "action": tx.tx_type,
                 "uid": tx.scanned_rfid_uid,
                 "quantity": tx.quantity,
             }
-            for tx, part, bin_ in items
+            for tx, part, area in items
         ],
     }
 
@@ -351,9 +371,9 @@ def get_paginated_inventory(
     from sqlalchemy import or_
 
     query = (
-        db.query(models.Inventory, models.Part, models.Bin)
+        db.query(models.Inventory, models.Part, models.Area)
         .join(models.Part, models.Part.id == models.Inventory.part_id)
-        .join(models.Bin, models.Bin.id == models.Inventory.bin_id)
+        .join(models.Area, models.Area.id == models.Inventory.bin_id)
     )
 
     # Search filter: match part name or SKU (case-insensitive)
@@ -380,11 +400,11 @@ def get_paginated_inventory(
         {
             "name": part.name,
             "sku": part.sku,
-            "bin": bin_.bin_label,
+            "area": area.bin_label,
             "qty": inv.quantity,
             "status": compute_status(inv.quantity),
         }
-        for inv, part, bin_ in all_rows
+        for inv, part, area in all_rows
     ]
 
     # Status filter (applied after computation)

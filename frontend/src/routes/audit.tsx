@@ -138,7 +138,7 @@ function AuditPage() {
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="bg-surface-container-low text-left">
-                    {["Time", "Part Name", "Bin Label", "Action", "Tag UID"].map((h) => (
+                    {["Time", "Part Name", "Area", "Action", "Tag UID"].map((h) => (
                       <th key={h} className="px-lg py-md text-[12px] uppercase tracking-wider border-b border-outline-variant font-bold text-secondary">
                         {h}
                       </th>
@@ -173,7 +173,7 @@ function AuditPage() {
                         {new Date(e.timestamp).toLocaleTimeString()}
                       </td>
                       <td className="px-lg py-sm font-bold text-sm">{e.name}</td>
-                      <td className="px-lg py-sm text-sm">{e.bin}</td>
+                      <td className="px-lg py-sm text-sm">{e.area}</td>
                       <td className="px-lg py-sm">
                         <span
                           className={`px-3 py-1 text-[10px] font-bold uppercase rounded-full border ${

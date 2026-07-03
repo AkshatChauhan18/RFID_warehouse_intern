@@ -41,7 +41,7 @@ export async function fetchMovements(page: number = 1, limit: number = 25): Prom
   items: {
     timestamp: string;
     name: string;
-    bin: string;
+    area: string; // ? Changed from bin
     action: "IN" | "OUT";
     uid: string;
     quantity: number;
@@ -74,7 +74,7 @@ export async function fetchPaginatedInventory(params: {
   items: {
     name: string;
     sku: string;
-    bin: string;
+    area: string; // ? Changed from bin
     qty: number;
     status: string;
   }[];

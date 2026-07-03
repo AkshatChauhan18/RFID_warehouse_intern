@@ -34,7 +34,7 @@ type Row = {
   name: string;
   icon: string;
   sku: string;
-  bin: string;
+  area: string; // ? Changed from bin
   qty: string;
   pct: number;
   status: "Optimal" | "Low Stock" | "Reorder" | "Critical";
@@ -110,7 +110,7 @@ function DashboardPage() {
         {/* KPIs */}
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-lg mb-xl">
           <KPI label="Total Parts" value={kpis.total_parts.toLocaleString()} icon="inventory_2" />
-          <KPI label="Bins Active" value={kpis.bins_active.toLocaleString()} icon="sensors" />
+          <KPI label="Active Areas" value={kpis.bins_active.toLocaleString()} icon="sensors" /> {/* ? Changed label to Active Areas */}
           <KPI label="Critical Alerts" value={kpis.critical_alerts.toLocaleString()} icon="warning" accent />
           <KPI label="Last Update" value={kpis.last_update_seconds.toString()} suffix="s ago" icon="update" />
         </div>
@@ -176,7 +176,7 @@ function DashboardPage() {
                         </div>
                       </td>
                       <td className="px-lg py-md font-mono text-sm text-secondary">{r.sku}</td>
-                      <td className="px-lg py-md">{r.bin}</td>
+                      <td className="px-lg py-md">{r.area}</td> {/* ? Changed from r.bin */}
                       <td className="px-lg py-md">
                         <div className="flex items-center gap-sm">
                           <span className={`font-bold ${r.status === "Critical" ? "text-primary" : ""}`}>

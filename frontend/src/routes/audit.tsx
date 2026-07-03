@@ -3,6 +3,7 @@ import { AppShell } from "@/components/AppShell";
 import { useState, useEffect } from "react";
 import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
 import { getMovements, getAuditSummary } from "@/lib/warehouse.functions";
+import { downloadCSV } from "@/lib/csv"; // ? CSV export utility
 
 //TODO:just a info , added this part:
 const auditSummaryQuery = queryOptions({
@@ -103,6 +104,19 @@ function AuditPage() {
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [actionFilter, setActionFilter] = useState("");
+  const exportCSV = () => { // ? Live Export CSV with relative timestamps
+    const now = Date.now();
+    const rows = movements.items.map((e) => [
+      `${Math.round((now - new Date(e.timestamp).getTime()) / 1000)}s ago`,
+      e.name,
+      e.area,
+      e.action,
+      e.uid,
+      String(e.quantity),
+    ]);
+    downloadCSV(`audit-ledger-${new Date().toISOString().slice(0, 10)}.csv`,
+      ["Time Ago", "Part Name", "Area", "Action", "Tag UID", "Quantity"], rows);
+  };
   const { data: summary } = useSuspenseQuery(auditSummaryQuery);
   const { data: movements } = useSuspenseQuery(movementsQuery(page));
   const totalPages = Math.ceil(movements.total / movements.limit);
@@ -143,7 +157,7 @@ function AuditPage() {
               <p className="text-secondary mt-1">Real-time physical movement tracking for Smart Bin Cluster Beta.</p>
             </div>
             <div className="flex gap-sm">
-              <button className="px-md py-sm border border-outline text-secondary text-[12px] uppercase tracking-wider font-bold flex items-center gap-2 hover:bg-surface-container transition-colors rounded">
+              <button onClick={exportCSV} className="px-md py-sm border border-outline text-secondary text-[12px] uppercase tracking-wider font-bold flex items-center gap-2 hover:bg-surface-container transition-colors rounded">
                 <span className="material-symbols-outlined text-[18px]">download</span> Export CSV
               </button>
             </div>

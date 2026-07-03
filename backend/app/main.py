@@ -263,11 +263,20 @@ def get_kpis(db: Session = Depends(get_db)):
     areas_active = db.query(models.Area).filter(models.Area.is_active == True).count()
     critical_alerts = db.query(models.Inventory).filter(models.Inventory.quantity < critical).count()
     
+    # ? Compute real seconds since last transaction for the live sync countdown
+    latest_tx = db.query(models.Transaction).order_by(models.Transaction.tx_timestamp.desc()).first()
+    if latest_tx:
+        raw_ts = latest_tx.tx_timestamp
+        tx_ts = raw_ts.replace(tzinfo=timezone.utc) if raw_ts.tzinfo is None else raw_ts
+        last_update_seconds = round((datetime.now(timezone.utc) - tx_ts).total_seconds())
+    else:
+        last_update_seconds = 0
+    
     return {
         "total_parts": int(total_parts),
         "bins_active": areas_active, # Kept as bins_active so UI doesn't break
         "critical_alerts": critical_alerts,
-        "last_update_seconds": 0.4  # Or compute actual time elapsed since last transaction
+        "last_update_seconds": last_update_seconds  # ? Computed from latest transaction timestamp
     }
 @app.get("/api/v1/dashboard/activity")
 def get_recent_activity(db: Session = Depends(get_db)):

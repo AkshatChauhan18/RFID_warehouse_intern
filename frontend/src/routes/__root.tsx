@@ -11,7 +11,6 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { useWebSocket } from "../hooks/use-websockets"; // 1. Import it
 
 function NotFoundComponent() {
   return (
@@ -113,19 +112,11 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
-// Add this small component right above RootComponent
-function GlobalWebSocket() {
-  useWebSocket();
-  return null;
-}
-
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-  // Remove useWebSocket() from here!
 
   return (
     <QueryClientProvider client={queryClient}>
-      <GlobalWebSocket /> {/* Put it inside the provider here */}
       <Outlet />
     </QueryClientProvider>
   );

@@ -1,8 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useState, useEffect } from "react";
 import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
 import { getPaginatedInventory, getKpis } from "@/lib/warehouse.functions";
+import { downloadCSV } from "@/lib/csv"; // ? CSV export utility
+import { useTxSignal } from "@/components/AppShell"; // ? Transaction signal for sync reset
 
 /* ------------------------------------------------------------------ */
 /*  Query factories                                                    */
@@ -53,9 +55,13 @@ function InventorySkeleton() {
 }
 
 export const Route = createFileRoute("/inventory")({
-  loader: ({ context }) => {
+  validateSearch: (search: Record<string, unknown>) => ({ // ? Accept ?search= from global search
+    search: (search.search as string) || "",
+  }),
+  loaderDeps: ({ search: { search } }) => ({ search }),
+  loader: ({ context, deps: { search } }) => {
     context.queryClient.ensureQueryData(kpisQuery);
-    context.queryClient.ensureQueryData(inventoryPageQuery(1, 10, "", ""));
+    context.queryClient.ensureQueryData(inventoryPageQuery(1, 10, search, ""));
   },
   head: () => ({
     meta: [
@@ -100,7 +106,7 @@ function KpiCard({
   accent,
 }: {
   label: string;
-  value: string;
+  value: string | React.ReactNode;
   icon: string;
   accent?: boolean;
 }) {
@@ -132,12 +138,39 @@ function KpiCard({
 /*  Page component                                                     */
 /* ------------------------------------------------------------------ */
 
+function SyncTick({ seconds }: { seconds: number }) { // ? Live-ticking seconds counter
+  const tx = useTxSignal(); // ? Reset on every inventory_updated WebSocket event
+  const [tick, setTick] = useState(seconds);
+  useEffect(() => {
+    setTick(seconds);
+    const id = setInterval(() => setTick((s) => s + 1), 1000);
+    return () => clearInterval(id);
+  }, [seconds, tx.count]); // ? tx.count forces instant reset on transaction
+  const m = Math.floor(tick / 60);
+  const s = tick % 60;
+  const h = Math.floor(m / 60);
+  const min = m % 60;
+  if (h > 0) return <>{h}h {min}m ago</>;
+  if (m > 0) return <>{m}m {s}s ago</>;
+  return <>{s}s ago</>;
+}
+
 function InventoryPage() {
+  const navigate = useNavigate();
+  const { search: urlSearch } = Route.useSearch(); // ? Read search from URL
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
-  const [search, setSearch] = useState("");
-  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState(urlSearch || "");
+  const [searchInput, setSearchInput] = useState(urlSearch || "");
   const [statusFilter, setStatusFilter] = useState("");
+
+  useEffect(() => { // ? Sync URL search param into component on mount
+    if (urlSearch) {
+      setSearch(urlSearch);
+      setSearchInput(urlSearch);
+      setPage(1);
+    }
+  }, [urlSearch]);
 
   const { data: kpis } = useSuspenseQuery(kpisQuery);
   const { data: inventory } = useSuspenseQuery(
@@ -149,11 +182,24 @@ function InventoryPage() {
   const handleSearch = () => {
     setSearch(searchInput);
     setPage(1);
+    navigate({ to: "/inventory", search: { search: searchInput } }); // ? Sync local search to URL
   };
 
   const handleStatusFilter = (s: string) => {
     setStatusFilter(s === statusFilter ? "" : s);
     setPage(1);
+  };
+
+  const exportCSV = () => { // ? Live Export CSV of current filtered inventory
+    const rows = inventory.items.map((item) => [
+      item.name,
+      item.sku,
+      item.area,
+      item.qty.toLocaleString(),
+      item.status,
+    ]);
+    downloadCSV(`inventory-${new Date().toISOString().slice(0, 10)}.csv`,
+      ["Part Name", "SKU", "Area Location", "Quantity", "Status"], rows);
   };
 
   /* ---------- Pagination helpers ---------- */
@@ -191,7 +237,7 @@ function InventoryPage() {
               Complete warehouse inventory ledger with real-time stock levels.
             </p>
           </div>
-          <button className="bg-surface-container text-on-surface px-lg py-sm text-[12px] font-bold uppercase tracking-wider rounded border border-outline-variant hover:bg-surface-container-high transition-colors flex items-center gap-sm">
+          <button onClick={exportCSV} className="bg-surface-container text-on-surface px-lg py-sm text-[12px] font-bold uppercase tracking-wider rounded border border-outline-variant hover:bg-surface-container-high transition-colors flex items-center gap-sm">
             <span className="material-symbols-outlined text-[18px]">
               download
             </span>
@@ -219,7 +265,7 @@ function InventoryPage() {
           />
           <KpiCard
             label="Recent Sync"
-            value={`${kpis.last_update_seconds}s ago`}
+            value={<SyncTick seconds={kpis.last_update_seconds} />}
             icon="sync"
           />
         </div>

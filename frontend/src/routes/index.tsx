@@ -1,7 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
+import { useState, useEffect } from "react";
 import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
 import { getInventory, getKpis, getActivity, getHeatmap } from "@/lib/warehouse.functions";
+import { useTxSignal } from "@/components/AppShell"; // ? Transaction signal for sync reset
+import { downloadCSV } from "@/lib/csv"; // ? CSV export utility
 const inventoryQuery = queryOptions({
   queryKey: ["inventory"],
   queryFn: () => getInventory(),
@@ -97,7 +100,7 @@ function BarColor(s: Row["status"]) {
   return "bg-green-600";
 }
 
-function KPI({ label, value, suffix, accent, icon }: { label: string; value: string; suffix?: string; accent?: boolean; icon: string }) {
+function KPI({ label, value, suffix, accent, icon }: { label: string; value: string | React.ReactNode; suffix?: string; accent?: boolean; icon: string }) {
   return (
     <div className="bg-surface-container-lowest border border-outline-variant p-lg rounded-lg flex flex-col justify-between h-32 relative overflow-hidden">
       <div className="z-10">
@@ -114,6 +117,23 @@ function KPI({ label, value, suffix, accent, icon }: { label: string; value: str
   );
 }
 
+function SyncTick({ seconds }: { seconds: number }) { // ? Live-ticking seconds counter
+  const tx = useTxSignal(); // ? Reset on every inventory_updated WebSocket event
+  const [tick, setTick] = useState(seconds);
+  useEffect(() => {
+    setTick(seconds);
+    const id = setInterval(() => setTick((s) => s + 1), 1000);
+    return () => clearInterval(id);
+  }, [seconds, tx.count]); // ? tx.count forces instant reset on transaction
+  const m = Math.floor(tick / 60);
+  const s = tick % 60;
+  const h = Math.floor(m / 60);
+  const min = m % 60;
+  if (h > 0) return <>{h}h {min}m ago</>;
+  if (m > 0) return <>{m}m {s}s ago</>;
+  return <>{s}s ago</>;
+}
+
 function DashboardPage() {
   const { data: inventoryData } = useSuspenseQuery(inventoryQuery);
   const { data: kpis } = useSuspenseQuery(kpisQuery);
@@ -127,6 +147,24 @@ function DashboardPage() {
     if (name.toLowerCase().includes("cell") || name.toLowerCase().includes("battery")) return "bolt";
     return "construction";
   };
+  const exportReport = () => { // ? Export full dashboard report with KPIs + inventory snapshot
+    const csvRows: string[][] = [
+      ["Metric", "Value"],
+      ["Total Parts", kpis.total_parts.toLocaleString()],
+      ["Active Areas", kpis.bins_active.toLocaleString()],
+      ["Critical Alerts", kpis.critical_alerts.toLocaleString()],
+      ["Last Update", `${kpis.last_update_seconds}s ago`],
+      [],
+      ["--- Inventory Ledger ---"],
+      ["Part Name", "SKU", "Area", "Quantity", "Status"],
+      ...inventoryData.map((r: any) => [r.name, r.sku, r.area, String(r.qty), r.status]),
+    ];
+    downloadCSV(
+      `dashboard-report-${new Date().toISOString().slice(0, 10)}.csv`,
+      [],
+      csvRows,
+    );
+  };
   return (
     <AppShell>
       <main className="flex-1 p-margin-desktop animate-fade-in">
@@ -136,7 +174,7 @@ function DashboardPage() {
             <p className="text-secondary mt-xs">Real-time IoT telemetry from Warehouse Node Alpha</p>
           </div>
           <div className="flex gap-md">
-            <button className="bg-surface-container text-on-surface px-lg py-sm text-[12px] font-bold uppercase tracking-wider rounded border border-outline-variant hover:bg-surface-container-high transition-colors flex items-center gap-sm">
+            <button onClick={exportReport} className="bg-surface-container text-on-surface px-lg py-sm text-[12px] font-bold uppercase tracking-wider rounded border border-outline-variant hover:bg-surface-container-high transition-colors flex items-center gap-sm">
               <span className="material-symbols-outlined text-[18px]">download</span>
               Export Report
             </button>
@@ -152,7 +190,7 @@ function DashboardPage() {
           <KPI label="Total Parts" value={kpis.total_parts.toLocaleString()} icon="inventory_2" />
           <KPI label="Active Areas" value={kpis.bins_active.toLocaleString()} icon="sensors" /> {/* ? Changed label to Active Areas */}
           <KPI label="Critical Alerts" value={kpis.critical_alerts.toLocaleString()} icon="warning" accent />
-          <KPI label="Last Update" value={kpis.last_update_seconds.toString()} suffix="s ago" icon="update" />
+          <KPI label="Last Update" value={<SyncTick seconds={kpis.last_update_seconds} />} suffix="" icon="update" />
         </div>
 
         {/* Content grid */}

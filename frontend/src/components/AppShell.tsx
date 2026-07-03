@@ -1,5 +1,10 @@
-import { Link, useRouterState } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { Link, useRouter, useRouterState } from "@tanstack/react-router";
+import { useState, useEffect, createContext, useContext, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+
+// ? Shared context so any page can signal a transaction reset to SyncTick components
+const TxContext = createContext<{ count: number; signal: () => void }>({ count: 0, signal: () => {} });
+export const useTxSignal = () => useContext(TxContext);
 
 const nav = [
   { to: "/", icon: "dashboard", label: "Dashboard" },
@@ -19,8 +24,29 @@ const footerNav = [
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const router = useRouter(); // ? Global search navigator
+  const [globalQuery, setGlobalQuery] = useState(""); // ? Global search state
+  const queryClient = useQueryClient();
+  const [txSignal, setTxSignal] = useState(0); // ? Incremented on each inventory_updated WS event
+
+  useEffect(() => { // ? Consolidated WebSocket: invalidates queries AND resets sync counters
+    const baseUrl = process.env.FASTAPI_BASE_URL || "http://localhost:8000";
+    const wsUrl = baseUrl.replace(/^http/, "ws") + "/api/v1/ws";
+    const ws = new WebSocket(wsUrl);
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.event === "inventory_updated") {
+          setTxSignal((s) => s + 1);
+          queryClient.invalidateQueries();
+        }
+      } catch { /* ignore */ }
+    };
+    return () => ws.close();
+  }, [queryClient]);
 
   return (
+    <TxContext.Provider value={{ count: txSignal, signal: () => setTxSignal((s) => s + 1) }}>
     <div className="min-h-screen bg-background text-on-surface">
       {/* Sidebar */}
       <aside className="h-screen w-64 fixed left-0 top-0 bg-surface-container-low border-r border-outline-variant z-40 flex flex-col py-lg">
@@ -78,7 +104,15 @@ export function AppShell({ children }: { children: ReactNode }) {
               <span className="material-symbols-outlined absolute left-3 text-secondary text-[20px]">search</span>
               <input
                 type="text"
-                placeholder="Global search..."
+                placeholder="Search inventory..."
+                value={globalQuery}
+                onChange={(e) => setGlobalQuery(e.target.value)}
+                onKeyDown={(e) => { // ? Navigate to inventory with search term
+                  if (e.key === "Enter" && globalQuery.trim()) {
+                    router.navigate({ to: "/inventory", search: { search: globalQuery.trim() } });
+                    setGlobalQuery("");
+                  }
+                }}
                 className="bg-surface-container border-none h-10 pl-10 pr-4 text-sm w-80 rounded focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
@@ -105,5 +139,6 @@ export function AppShell({ children }: { children: ReactNode }) {
         {children}
       </div>
     </div>
+    </TxContext.Provider>
   );
 }

@@ -29,6 +29,29 @@ const inventoryPageQuery = (
 /*  Route definition                                                   */
 /* ------------------------------------------------------------------ */
 
+function InventorySkeleton() {
+  return (
+    <AppShell>
+      <main className="flex-1 p-margin-desktop animate-fade-in">
+        <div className="flex justify-between items-end mb-xl">
+          <div>
+            <div className="h-9 w-48 animate-skeleton bg-surface-container-high rounded" />
+            <div className="h-4 w-72 mt-2 animate-skeleton bg-surface-container-high rounded" />
+          </div>
+          <div className="h-10 w-32 animate-skeleton bg-surface-container-high rounded" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-lg mb-xl">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-28 animate-skeleton bg-surface-container-high rounded-lg" />
+          ))}
+        </div>
+        <div className="h-14 animate-skeleton bg-surface-container-high rounded-lg mb-lg" />
+        <div className="h-96 animate-skeleton bg-surface-container-high rounded-lg" />
+      </main>
+    </AppShell>
+  );
+}
+
 export const Route = createFileRoute("/inventory")({
   loader: ({ context }) => {
     context.queryClient.ensureQueryData(kpisQuery);
@@ -45,6 +68,9 @@ export const Route = createFileRoute("/inventory")({
     ],
   }),
   component: InventoryPage,
+  pendingComponent: InventorySkeleton,
+  pendingMs: 100,
+  pendingMinMs: 300,
 });
 
 /* ------------------------------------------------------------------ */
@@ -154,7 +180,7 @@ function InventoryPage() {
 
   return (
     <AppShell>
-      <main className="flex-1 p-margin-desktop">
+      <main className="flex-1 p-margin-desktop animate-fade-in">
         {/* ---- Header ---- */}
         <div className="flex flex-wrap justify-between items-end mb-xl gap-md">
           <div>
@@ -174,7 +200,7 @@ function InventoryPage() {
         </div>
 
         {/* ---- KPI Cards ---- */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-lg mb-xl">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-lg mb-xl animate-stagger">
           <KpiCard
             label="Total SKUs in Stock"
             value={kpis.total_parts.toLocaleString()}

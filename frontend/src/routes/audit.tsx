@@ -17,6 +17,30 @@ const movementsQuery = (page: number) =>
     queryFn: () => getMovements({ data: { page, limit: 10 } }),
   });
 
+function AuditSkeleton() {
+  return (
+    <AppShell>
+      <main className="flex-1 flex flex-col">
+        <div className="p-margin-desktop space-y-lg max-w-7xl animate-fade-in">
+          <div className="flex justify-between items-end">
+            <div>
+              <div className="h-9 w-48 animate-skeleton bg-surface-container-high rounded" />
+              <div className="h-4 w-64 mt-2 animate-skeleton bg-surface-container-high rounded" />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-lg">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-24 animate-skeleton bg-surface-container-high rounded" />
+            ))}
+          </div>
+          <div className="h-14 animate-skeleton bg-surface-container-high rounded-lg" />
+          <div className="h-96 animate-skeleton bg-surface-container-high rounded-lg" />
+        </div>
+      </main>
+    </AppShell>
+  );
+}
+
 export const Route = createFileRoute("/audit")({
   loader: ({ context }) => {
     context.queryClient.ensureQueryData(auditSummaryQuery);
@@ -29,9 +53,10 @@ export const Route = createFileRoute("/audit")({
     ],
   }),
   component: AuditPage,
+  pendingComponent: AuditSkeleton,
+  pendingMs: 100,
+  pendingMinMs: 300,
 });
-
-//TODO:just a info: my code ended here
 
 
 // type Entry = { t: string; name: string; bin: string; action: "IN" | "OUT"; uid: string };
@@ -48,13 +73,43 @@ export const Route = createFileRoute("/audit")({
 
 function AuditPage() {
   const [page, setPage] = useState(1);
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+  const [actionFilter, setActionFilter] = useState("");
   const { data: summary } = useSuspenseQuery(auditSummaryQuery);
   const { data: movements } = useSuspenseQuery(movementsQuery(page));
   const totalPages = Math.ceil(movements.total / movements.limit);
+
+  const handleSearch = () => {
+    setSearch(searchInput);
+    setPage(1);
+  };
+
+  const handleActionFilter = (a: string) => {
+    setActionFilter(a === actionFilter ? "" : a);
+    setPage(1);
+  };
+
+  const getPageNumbers = () => {
+    const pages: (number | "...")[] = [];
+    if (totalPages <= 5) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (page > 3) pages.push("...");
+      for (let i = Math.max(2, page - 1); i <= Math.min(totalPages - 1, page + 1); i++) {
+        pages.push(i);
+      }
+      if (page < totalPages - 2) pages.push("...");
+      pages.push(totalPages);
+    }
+    return pages;
+  };
+
   return (
     <AppShell>
       <main className="flex-1 flex flex-col">
-        <div className="p-margin-desktop space-y-lg max-w-7xl">
+        <div className="p-margin-desktop space-y-lg max-w-7xl animate-fade-in">
           <div className="flex flex-wrap gap-md justify-between items-end">
             <div>
               <h2 className="text-3xl font-semibold text-on-surface tracking-tight">Audit Ledger</h2>
@@ -62,11 +117,49 @@ function AuditPage() {
             </div>
             <div className="flex gap-sm">
               <button className="px-md py-sm border border-outline text-secondary text-[12px] uppercase tracking-wider font-bold flex items-center gap-2 hover:bg-surface-container transition-colors rounded">
-                <span className="material-symbols-outlined text-[18px]">filter_list</span> Filter
-              </button>
-              <button className="px-md py-sm border border-outline text-secondary text-[12px] uppercase tracking-wider font-bold flex items-center gap-2 hover:bg-surface-container transition-colors rounded">
                 <span className="material-symbols-outlined text-[18px]">download</span> Export CSV
               </button>
+            </div>
+          </div>
+
+          {/* Filter toolbar */}
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-lg p-lg">
+            <div className="flex flex-wrap gap-md items-center justify-between">
+              <div className="relative flex items-center flex-1 min-w-[240px] max-w-md">
+                <span className="material-symbols-outlined absolute left-3 text-secondary text-[20px]">search</span>
+                <input
+                  type="text"
+                  placeholder="Search by Part, UID or Area..."
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                  className="w-full bg-surface-container-low border border-outline-variant h-10 pl-10 pr-4 text-sm rounded focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
+                />
+                {searchInput && (
+                  <button onClick={() => { setSearchInput(""); setSearch(""); setPage(1); }}
+                    className="absolute right-3 text-secondary hover:text-on-surface">
+                    <span className="material-symbols-outlined text-[18px]">close</span>
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-sm">
+                <span className="text-[12px] text-secondary font-semibold uppercase tracking-wider mr-xs">Action:</span>
+                {["All", "IN", "OUT"].map((a) => {
+                  const isActive = a === "All" ? actionFilter === "" : actionFilter === a;
+                  return (
+                    <button key={a} onClick={() => handleActionFilter(a === "All" ? "" : a)}
+                      className={`px-md py-xs text-[11px] font-bold uppercase tracking-wider rounded-full border transition-all cursor-pointer ${
+                        isActive
+                          ? a === "All" ? "bg-on-surface text-surface border-on-surface"
+                            : a === "IN" ? "bg-green-700 text-white border-green-700"
+                            : "bg-error text-on-error border-error"
+                          : "bg-transparent text-secondary border-outline-variant hover:bg-surface-container"
+                      }`}>
+                      {a}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
@@ -214,44 +307,54 @@ function AuditPage() {
                 </button>
               </div>
             </div> */}
-            <div className="bg-surface-container-lowest p-md border-t border-outline-variant flex justify-between items-center">
+            {movements.total > 0 && (
+            <div className="bg-surface-container-lowest p-md border-t border-outline-variant flex flex-wrap justify-between items-center gap-md">
               <span className="text-xs text-secondary">
-                Showing {(page - 1) * 25 + 1}-{Math.min(page * 25, movements.total)} of {movements.total.toLocaleString()} entries
+                Showing {" "}
+                <span className="font-bold text-on-surface">{(page - 1) * 25 + 1}–{Math.min(page * 25, movements.total)}</span>{" "}
+                of {" "}
+                <span className="font-bold text-on-surface">{movements.total.toLocaleString()}</span>{" "}
+                entries
               </span>
               <div className="flex gap-xs">
                 <button
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page === 1}
-                  className="w-8 h-8 flex items-center justify-center border border-outline-variant hover:bg-surface-container transition-all disabled:opacity-30"
+                  className="w-8 h-8 flex items-center justify-center border border-outline-variant rounded hover:bg-surface-container transition-all disabled:opacity-30"
                 >
                   <span className="material-symbols-outlined text-sm">chevron_left</span>
                 </button>
-                {Array.from({ length: Math.min(3, totalPages) }, (_, i) => i + 1).map((n) => (
-                  <button
-                    key={n}
-                    onClick={() => setPage(n)}
-                    className={
-                      n === page
-                        ? "w-8 h-8 flex items-center justify-center border border-primary bg-primary text-on-primary text-xs font-bold"
-                        : "w-8 h-8 flex items-center justify-center border border-outline-variant hover:bg-surface-container transition-all text-xs"
-                    }
-                  >
-                    {n}
-                  </button>
-                ))}
+                {getPageNumbers().map((n, i) =>
+                  n === "..." ? (
+                    <span key={`dots-${i}`} className="w-8 h-8 flex items-center justify-center text-xs text-secondary">…</span>
+                  ) : (
+                    <button
+                      key={n}
+                      onClick={() => setPage(n as number)}
+                      className={
+                        n === page
+                          ? "w-8 h-8 flex items-center justify-center border border-primary bg-primary text-on-primary text-xs font-bold rounded"
+                          : "w-8 h-8 flex items-center justify-center border border-outline-variant hover:bg-surface-container transition-all text-xs rounded"
+                      }
+                    >
+                      {n}
+                    </button>
+                  ),
+                )}
                 <button
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                  className="w-8 h-8 flex items-center justify-center border border-outline-variant hover:bg-surface-container transition-all disabled:opacity-30"
+                  disabled={page === totalPages || totalPages === 0}
+                  className="w-8 h-8 flex items-center justify-center border border-outline-variant rounded hover:bg-surface-container transition-all disabled:opacity-30"
                 >
                   <span className="material-symbols-outlined text-sm">chevron_right</span>
                 </button>
               </div>
             </div>
+            )}
           </div>
 
           {/* Visualizations */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-lg">
+          {/* <div className="grid grid-cols-1 md:grid-cols-2 gap-lg">
             <div className="bg-surface-container-lowest border border-outline-variant p-lg rounded">
               <div className="flex justify-between items-center mb-lg">
                 <h4 className="text-[12px] uppercase tracking-wider font-bold">Node Occupancy Heatmap</h4>
@@ -282,7 +385,8 @@ function AuditPage() {
                 ))}
               </div>
             </div>
-          </div>
+            
+          </div> */}
         </div>
 
         <footer className="mt-auto p-margin-desktop border-t border-outline-variant text-xs text-secondary flex flex-wrap gap-md justify-between">

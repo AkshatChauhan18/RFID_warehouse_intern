@@ -9,12 +9,12 @@ const nav = [
 ] as const;
 
 const extraNav = [
-  { icon: "settings", label: "Settings" },
+  // { icon: "settings", label: "Settings" },
 ];
 
 const footerNav = [
-  { icon: "analytics", label: "System Health" },
-  { icon: "help", label: "Help" },
+  // { icon: "analytics", label: "System Health" },
+  // { icon: "help", label: "Help" },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {

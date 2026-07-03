@@ -15,6 +15,37 @@ const activityQuery = queryOptions({
   queryFn: () => getActivity(),
 });
 
+function DashboardSkeleton() {
+  return (
+    <AppShell>
+      <main className="flex-1 p-margin-desktop animate-fade-in">
+        <div className="flex justify-between items-end mb-xl">
+          <div>
+            <div className="h-9 w-64 animate-skeleton bg-surface-container-high rounded" />
+            <div className="h-4 w-80 mt-2 animate-skeleton bg-surface-container-high rounded" />
+          </div>
+          <div className="flex gap-md">
+            <div className="h-10 w-32 animate-skeleton bg-surface-container-high rounded" />
+            <div className="h-10 w-36 animate-skeleton bg-surface-container-high rounded" />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-lg mb-xl">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-32 animate-skeleton bg-surface-container-high rounded-lg" />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-xl">
+          <div className="lg:col-span-2 h-96 animate-skeleton bg-surface-container-high rounded" />
+          <div className="space-y-xl">
+            <div className="h-64 animate-skeleton bg-surface-container-high rounded" />
+            <div className="h-72 animate-skeleton bg-surface-container-high rounded" />
+          </div>
+        </div>
+      </main>
+    </AppShell>
+  );
+}
+
 export const Route = createFileRoute("/")({
   loader: ({ context }) => {
     context.queryClient.ensureQueryData(inventoryQuery);
@@ -28,6 +59,9 @@ export const Route = createFileRoute("/")({
     ],
   }),
   component: DashboardPage,
+  pendingComponent: DashboardSkeleton,
+  pendingMs: 100,
+  pendingMinMs: 300,
 });
 
 type Row = {
@@ -89,7 +123,7 @@ function DashboardPage() {
   };
   return (
     <AppShell>
-      <main className="flex-1 p-margin-desktop">
+      <main className="flex-1 p-margin-desktop animate-fade-in">
         <div className="flex justify-between items-end mb-xl">
           <div>
             <h1 className="text-3xl font-bold text-on-surface tracking-tight">Smart Bin Inventory</h1>
@@ -108,7 +142,7 @@ function DashboardPage() {
         </div>
 
         {/* KPIs */}
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-lg mb-xl">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-lg mb-xl animate-stagger">
           <KPI label="Total Parts" value={kpis.total_parts.toLocaleString()} icon="inventory_2" />
           <KPI label="Active Areas" value={kpis.bins_active.toLocaleString()} icon="sensors" /> {/* ? Changed label to Active Areas */}
           <KPI label="Critical Alerts" value={kpis.critical_alerts.toLocaleString()} icon="warning" accent />
@@ -116,7 +150,7 @@ function DashboardPage() {
         </div>
 
         {/* Content grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-xl">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-xl animate-fade-in-up">
           {/* Inventory ledger */}
           <div className="lg:col-span-2 bg-surface-container-lowest border border-outline-variant rounded shadow-sm flex flex-col overflow-hidden">
             <div className="p-lg border-b border-outline-variant flex justify-between items-center bg-white">
@@ -182,6 +216,9 @@ function DashboardPage() {
                           <span className={`font-bold ${r.status === "Critical" ? "text-primary" : ""}`}>
                             {r.qty.toLocaleString()}
                           </span>
+                          <div className="w-16 h-1.5 bg-secondary-container rounded-full overflow-hidden">
+                            <div className={`${BarColor(r.status)} h-full rounded-full`} style={{ width: `${Math.min((r.qty / 50) * 100, 100)}%` }} />
+                          </div>
                         </div>
                       </td>
                       <td className="px-lg py-md text-right">
@@ -227,25 +264,56 @@ function DashboardPage() {
             <div className="bg-surface-container-lowest border border-outline-variant rounded p-lg shadow-sm">
               <div className="flex justify-between items-center mb-md">
                 <h4 className="text-lg font-bold">Bay Heatmap</h4>
-                <span className="material-symbols-outlined text-secondary cursor-pointer">open_in_new</span>
+                <span className="material-symbols-outlined text-secondary cursor-pointer hover:text-primary transition-colors">open_in_new</span>
               </div>
               <div className="aspect-square bg-surface-container rounded border border-outline-variant relative p-md grid grid-cols-4 grid-rows-4 gap-xs">
                 {[
-                  "w", "w", "pf", "w",
-                  "w", "p", "w", "w",
-                  "w", "w", "sc", "w",
-                  "pf", "w", "w", "w",
-                ].map((c, i) => {
+                  { zone: "A1", status: "full" },
+                  { zone: "A2", status: "full" },
+                  { zone: "A3", status: "partial" },
+                  { zone: "A4", status: "full" },
+                  { zone: "B1", status: "full" },
+                  { zone: "B2", status: "critical" },
+                  { zone: "B3", status: "full" },
+                  { zone: "B4", status: "full" },
+                  { zone: "C1", status: "full" },
+                  { zone: "C2", status: "full" },
+                  { zone: "C3", status: "empty" },
+                  { zone: "C4", status: "full" },
+                  { zone: "D1", status: "partial" },
+                  { zone: "D2", status: "full" },
+                  { zone: "D3", status: "full" },
+                  { zone: "D4", status: "full" },
+                ].map((cell, i) => {
                   const cls =
-                    c === "w" ? "bg-white" :
-                    c === "pf" ? "bg-primary-fixed border-primary" :
-                    c === "p" ? "bg-primary border-primary animate-pulse" :
-                    "bg-secondary-container";
-                  return <div key={i} className={`border border-outline-variant rounded-sm ${cls}`} />;
+                    cell.status === "full" ? "bg-green-100 border-green-200" :
+                    cell.status === "partial" ? "bg-primary-fixed border-primary" :
+                    cell.status === "critical" ? "bg-primary border-primary animate-pulse" :
+                    "bg-surface-container border-outline-variant";
+                  return (
+                    <div key={i} className={`relative border rounded-sm flex items-center justify-center group ${cls}`}>
+                      <span className="text-[9px] font-mono text-secondary opacity-0 group-hover:opacity-100 transition-opacity font-bold select-none">
+                        {cell.zone}
+                      </span>
+                    </div>
+                  );
                 })}
               </div>
+              <div className="flex items-center justify-center gap-lg mt-md">
+                {[
+                  { color: "bg-green-100 border-green-200", label: "Stocked" },
+                  { color: "bg-primary-fixed border-primary", label: "Partial" },
+                  { color: "bg-primary border-primary", label: "Critical" },
+                  { color: "bg-surface-container border-outline-variant", label: "Empty" },
+                ].map((l) => (
+                  <div key={l.label} className="flex items-center gap-1.5">
+                    <div className={`w-2.5 h-2.5 rounded-sm border ${l.color}`} />
+                    <span className="text-[10px] text-secondary uppercase tracking-wider font-semibold">{l.label}</span>
+                  </div>
+                ))}
+              </div>
               <p className="text-[10px] text-secondary mt-md uppercase tracking-widest text-center font-semibold">
-                Node Alpha Sector B Visualization
+                Node Alpha Sector B · Real-time Occupancy
               </p>
             </div>
 

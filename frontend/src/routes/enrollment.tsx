@@ -149,7 +149,7 @@ function EnrollmentPage() {
 
   return (
     <AppShell>
-      <main className="flex-1 p-margin-desktop grid grid-cols-12 gap-lg overflow-hidden" style={{ height: "calc(100vh - 64px)" }}>
+      <main className="flex-1 p-margin-desktop grid grid-cols-12 gap-lg overflow-hidden animate-fade-in" style={{ height: "calc(100vh - 64px)" }}>
 
         {/* ────────── Left: Enrollment Controls (8 cols) ────────── */}
         <div className="col-span-12 lg:col-span-8 flex flex-col gap-lg overflow-y-auto pr-sm">

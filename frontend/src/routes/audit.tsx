@@ -430,13 +430,13 @@ function AuditPage() {
           </div> */}
         </div>
 
-        <footer className="mt-auto p-margin-desktop border-t border-outline-variant text-xs text-secondary flex flex-wrap gap-md justify-between">
+        {/* <footer className="mt-auto p-margin-desktop border-t border-outline-variant text-xs text-secondary flex flex-wrap gap-md justify-between">
           <p>© 2026 LOGISTIX OPERATIONAL SUITE. INDUSTRIAL HARDWARE LAYER V2.4</p>
           <div className="flex gap-lg">
             <a className="hover:text-primary" href="#">System Status: Nominal</a>
             <a className="hover:text-primary" href="#">Security Protocol: E2EE</a>
           </div>
-        </footer>
+        </footer> */}
       </main>
     </AppShell>
   );

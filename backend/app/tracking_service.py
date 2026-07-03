@@ -65,7 +65,7 @@ class TrackingService:
                 tx_time = tx_time.replace(tzinfo=timezone.utc)
 
             # ? 30 SECOND COOLDOWN for large parts passing through doors
-            if (now_utc - tx_time) < timedelta(seconds=5):
+            if (now_utc - tx_time) < timedelta(seconds=15):
                 return  # Still passing through, ignore
 
             inferred_action = "OUT" if last_tx.tx_type == "IN" else "IN"

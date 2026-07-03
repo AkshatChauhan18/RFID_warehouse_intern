@@ -34,7 +34,8 @@ class ConnectionManager:
             except Exception:
                 pass # Ignore dropped connections
 manager = ConnectionManager()
-
+low_stock=25
+critical=1
 # ? Added lifespan to manage MQTT client background thread and enrollment service
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -129,7 +130,7 @@ def get_inventory(db: Session = Depends(get_db)):
             "sku": part.sku,
             "area": area.bin_label, # ? Changed bin to area
             "qty": inv.quantity,
-            "status": "Critical" if inv.quantity < 5 else "Low Stock" if inv.quantity < 25 else "Optimal"
+            "status": "Critical" if inv.quantity < critical else "Low Stock" if inv.quantity < low_stock else "Optimal"
         }
         for inv, part, area in rows
     ]
@@ -260,7 +261,7 @@ async def process_hardware_scan(payload: schemas.HardwareScan, db: Session = Dep
 def get_kpis(db: Session = Depends(get_db)):
     total_parts = db.query(func.coalesce(func.sum(models.Inventory.quantity), 0)).scalar()
     areas_active = db.query(models.Area).filter(models.Area.is_active == True).count()
-    critical_alerts = db.query(models.Inventory).filter(models.Inventory.quantity < 10).count()
+    critical_alerts = db.query(models.Inventory).filter(models.Inventory.quantity < critical).count()
     
     return {
         "total_parts": int(total_parts),
@@ -390,9 +391,9 @@ def get_paginated_inventory(
 
     # Compute status for each row
     def compute_status(qty: int) -> str:
-        if qty < 5:
+        if qty < critical:
             return "Critical"
-        elif qty < 25:
+        elif qty < low_stock:
             return "Low Stock"
         return "Optimal"
 

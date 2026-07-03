@@ -10,6 +10,7 @@ import {
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
+import faviconUrl from "../assets/logo_notext.png";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 
 function NotFoundComponent() {
@@ -77,15 +78,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "LOGISTIX Operational Suite | Smart Bin Inventory" },
-      { name: "description", content: "LG-inspired industrial smart-bin inventory control: dashboard, RFID enrollment, and audit ledger." },
+      { title: "LOGISTIX Operational Suite | Smart Inventory" },
+      { name: "description", content: "Industrial rfid based smart inventory control: dashboard, RFID enrollment, and audit ledger." },
       { property: "og:title", content: "LOGISTIX Operational Suite" },
-      { property: "og:description", content: "Precision industrial smart-bin inventory control." },
+      { property: "og:description", content: "Precision industrial inventory control." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
+      { rel: "icon", href: faviconUrl, type: "image/png" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" },

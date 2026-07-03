@@ -34,20 +34,23 @@ export async function fetchActivity(): Promise<{
 }
 
 
-export async function fetchMovements(page: number = 1, limit: number = 25): Promise<{
+export async function fetchMovements(page: number = 1, limit: number = 25, search: string = "", action: string = ""): Promise<{
   page: number;
   limit: number;
   total: number;
   items: {
     timestamp: string;
     name: string;
-    area: string; // ? Changed from bin
+    area: string;
     action: "IN" | "OUT";
     uid: string;
     quantity: number;
   }[];
 }> {
-  const res = await fetch(`${getBaseUrl()}/api/v1/audit/movements?page=${page}&limit=${limit}`);
+  const qs = new URLSearchParams({ page: page.toString(), limit: limit.toString() });
+  if (search) qs.set("search", search);
+  if (action) qs.set("action", action);
+  const res = await fetch(`${getBaseUrl()}/api/v1/audit/movements?${qs}`);
   if (!res.ok) throw new Error(`Failed to fetch movements: ${res.status}`);
   return res.json();
 }

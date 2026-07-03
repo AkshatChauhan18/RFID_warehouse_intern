@@ -62,7 +62,7 @@ export const Route = createFileRoute("/")({
   },
   head: () => ({
     meta: [
-      { title: "Smart Bin Inventory | LOGISTIX" },
+      { title: "Smart Inventory | LOGISTIX" },
       { name: "description", content: "Real-time IoT telemetry from Warehouse Node Alpha." },
     ],
   }),
@@ -229,7 +229,7 @@ function DashboardPage() {
           <HeatmapBackground />
           <div className="relative z-10 flex justify-between items-end">
             <div>
-              <h1 className="text-3xl font-bold text-on-surface tracking-tight">Smart Bin Inventory</h1>
+              <h1 className="text-3xl font-bold text-on-surface tracking-tight">Smart Inventory</h1>
               <p className="text-secondary mt-xs">Real-time IoT telemetry from Warehouse Node Alpha</p>
             </div>
             <div className="flex gap-md">
@@ -238,14 +238,14 @@ function DashboardPage() {
                 <span className="material-symbols-outlined text-[18px]">grid_view</span>
                 Bay Heatmap
               </button>
-              <button onClick={exportReport} className="bg-surface-container text-on-surface px-lg py-sm text-[12px] font-bold uppercase tracking-wider rounded border border-outline-variant hover:bg-surface-container-high transition-colors flex items-center gap-sm">
+              <button onClick={exportReport} className="bg-primary text-on-primary px-lg py-sm text-[12px] font-bold uppercase tracking-wider rounded border border-outline-variant hover:bg-surface-container-high transition-colors flex items-center gap-sm">
                 <span className="material-symbols-outlined text-[18px]">download</span>
                 Export Report
               </button>
-              <button className="bg-primary text-on-primary px-lg py-sm text-[12px] font-bold uppercase tracking-wider rounded hover:opacity-90 transition-opacity flex items-center gap-sm">
+              {/* <button className="bg-primary text-on-primary px-lg py-sm text-[12px] font-bold uppercase tracking-wider rounded hover:opacity-90 transition-opacity flex items-center gap-sm">
                 <span className="material-symbols-outlined text-[18px]">add</span>
                 Manual Adjust
-              </button>
+              </button> */}
             </div>
           </div>
         </div>

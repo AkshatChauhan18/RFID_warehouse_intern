@@ -301,13 +301,29 @@ def get_recent_activity(db: Session = Depends(get_db)):
     return {"activities": activities}
 
 @app.get("/api/v1/audit/movements", response_model=schemas.MovementsResponse)
-def get_movements(page: int = 1, limit: int = 25, db: Session = Depends(get_db)):
+def get_movements(page: int = 1, limit: int = 25, search: str = "", action: str = "", db: Session = Depends(get_db)):
+    from sqlalchemy import or_
+
     query = (
         db.query(models.Transaction, models.Part, models.Area)
         .join(models.Part, models.Part.id == models.Transaction.part_id)
         .join(models.Area, models.Area.id == models.Transaction.bin_id)
-        .order_by(models.Transaction.tx_timestamp.desc())
     )
+
+    if search:
+        like = f"%{search}%"
+        query = query.filter(
+            or_(
+                models.Part.name.ilike(like),
+                models.Transaction.scanned_rfid_uid.ilike(like),
+                models.Area.bin_label.ilike(like),
+            )
+        )
+
+    if action and action.upper() in ("IN", "OUT"):
+        query = query.filter(models.Transaction.tx_type == action.upper())
+
+    query = query.order_by(models.Transaction.tx_timestamp.desc())
 
     total = query.count()
     offset = (page - 1) * limit

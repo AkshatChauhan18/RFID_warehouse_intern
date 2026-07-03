@@ -57,6 +57,19 @@ function formatDuration(seconds: number): string {
   return `${m}:${s}`;
 }
 
+/* ── Helpers ───────────────────────────────────────────── */
+function rssiToPercent(rssi: number): number {
+  // RSSI range: -90 (weak) to -20 (strong), clamp and map to 0-100
+  const clamped = Math.max(-90, Math.min(-20, rssi));
+  return Math.round(((clamped + 90) / 70) * 100);
+}
+
+function sigStrengthColor(pct: number): string {
+  if (pct >= 80) return "text-green-600";
+  if (pct >= 50) return "text-amber-600";
+  return "text-error";
+}
+
 /* ── Page ──────────────────────────────────────────────── */
 function EnrollmentPage() {
   const [isScanning, setIsScanning] = useState(false);
@@ -69,6 +82,12 @@ function EnrollmentPage() {
   const [processing, setProcessing] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ? Live hardware telemetry from tag WebSocket events
+  const [lastRssi, setLastRssi] = useState(0);
+  const [lastAntenna, setLastAntenna] = useState(0);
+  const [lastSyncTime, setLastSyncTime] = useState(0);
+  const [nowTick, setNowTick] = useState(Date.now());
 
   /* ── Scan timer ─────────────────────────────────────── */
   useEffect(() => {
@@ -88,6 +107,12 @@ function EnrollmentPage() {
     apiFetchParts().then(setParts);
   }, []);
 
+  // ? Live sync timer — ticks every second to refresh relative times
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
   // ? Added WebSocket listener to receive tags in real-time
   useEffect(() => {
     if (!isScanning) return;
@@ -97,8 +122,12 @@ function EnrollmentPage() {
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.type === "enrollment_tag") {
+        const now = Date.now();
+        setLastRssi(data.rssi || 0);
+        setLastAntenna(data.antenna || 1);
+        setLastSyncTime(now);
         setTags((prev) => [
-          { epc: data.uid, timestamp: Date.now(), antenna: data.antenna || 1, rssi: data.rssi || 0 },
+          { epc: data.uid, timestamp: now, antenna: data.antenna || 1, rssi: data.rssi || 0 },
           ...prev,
         ]);
       }
@@ -257,21 +286,36 @@ function EnrollmentPage() {
             </div>
           </div>
 
-          {/* ── Hardware Status Bar ───────────────────────────── */}
-          <div className="flex flex-wrap items-center gap-xl bg-surface-container border border-outline-variant px-lg py-md rounded">
-            <div className="flex items-center gap-sm">
-              <div className="w-2.5 h-2.5 rounded-full bg-secondary" />
-              <span className="text-[11px] uppercase tracking-wider font-semibold">Antenna Array: Active</span>
-            </div>
-            <div className="flex items-center gap-sm">
-              <span className="material-symbols-outlined text-[18px] text-on-surface-variant">signal_cellular_alt</span>
-              <span className="text-[11px] text-on-surface-variant uppercase tracking-wider font-semibold">98% Sig. Strength</span>
-            </div>
-            <div className="ml-auto flex items-center gap-sm text-primary">
-              <span className="material-symbols-outlined text-[18px]">sync</span>
-              <span className="text-[11px] uppercase tracking-wider font-semibold">Last Sync: Live</span>
-            </div>
-          </div>
+          {/* ── Hardware Status Bar — Live Telemetry ──────── */}
+          {(() => {
+            const isActive = lastSyncTime > 0 && (nowTick - lastSyncTime) < 30000;
+            const sigPct = lastRssi ? rssiToPercent(lastRssi) : 0;
+            const syncLabel = lastSyncTime === 0
+              ? "—"
+              : relativeTime(lastSyncTime);
+            return (
+              <div className="flex flex-wrap items-center gap-xl bg-surface-container border border-outline-variant px-lg py-md rounded">
+                <div className="flex items-center gap-sm">
+                  <div className={`w-2.5 h-2.5 rounded-full ${isActive ? "bg-green-500 animate-pulse" : "bg-secondary"}`} />
+                  <span className="text-[11px] uppercase tracking-wider font-semibold">
+                    Antenna {lastAntenna > 0 ? String(lastAntenna).padStart(2, "0") : "—"}: {isActive ? "Active" : "Idle"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-sm">
+                  <span className={`material-symbols-outlined text-[18px] ${sigStrengthColor(sigPct)}`}>signal_cellular_alt</span>
+                  <span className="text-[11px] text-on-surface-variant uppercase tracking-wider font-semibold">
+                    {lastRssi ? `${sigPct}% Sig. Strength (${lastRssi}dBm)` : "— dBm"}
+                  </span>
+                </div>
+                <div className="ml-auto flex items-center gap-sm text-primary">
+                  <span className={`material-symbols-outlined text-[18px] ${isActive ? "" : "text-secondary"}`}>sync</span>
+                  <span className="text-[11px] uppercase tracking-wider font-semibold">
+                    Last Sync: {syncLabel}
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* ────────── Right: Live Tags (4 cols) ────────── */}

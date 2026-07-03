@@ -6,8 +6,8 @@ export const getKpis = createServerFn({ method: "GET" }).handler(() => fetchKpis
 export const getActivity = createServerFn({ method: "GET" }).handler(() => fetchActivity());
 
 export const getMovements = createServerFn({ method: "GET" })
-  .validator((d: { page: number; limit: number }) => d)
-  .handler(({ data }) => fetchMovements(data.page, data.limit));
+  .validator((d: { page: number; limit: number; search?: string; action?: string }) => d)
+  .handler(({ data }) => fetchMovements(data.page, data.limit, data.search || "", data.action || ""));
 
 export const getAuditSummary = createServerFn({ method: "GET" }).handler(() => fetchAuditSummary());
 

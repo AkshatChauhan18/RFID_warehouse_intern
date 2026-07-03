@@ -11,11 +11,12 @@ const auditSummaryQuery = queryOptions({
   queryFn: () => getAuditSummary(),
 });
 
-// Movement query is dynamic (depends on page), so define it as a function
-const movementsQuery = (page: number) =>
+// Movement query is dynamic (depends on page, search, action), so define it as a function
+const movementsQuery = (page: number, search: string, action: string) =>
   queryOptions({
-    queryKey: ["movements", page],
-    queryFn: () => getMovements({ data: { page, limit: 10 } }),
+    queryKey: ["movements", page, search, action],
+    queryFn: () => getMovements({ data: { page, limit: 10, search, action: action || undefined } }),
+    refetchInterval: 3000,
   });
 
 function AuditSkeleton() {
@@ -45,7 +46,7 @@ function AuditSkeleton() {
 export const Route = createFileRoute("/audit")({
   loader: ({ context }) => {
     context.queryClient.ensureQueryData(auditSummaryQuery);
-    context.queryClient.ensureQueryData(movementsQuery(1));
+    context.queryClient.ensureQueryData(movementsQuery(1, "", ""));
   },
   head: () => ({
     meta: [
@@ -118,7 +119,7 @@ function AuditPage() {
       ["Time Ago", "Part Name", "Area", "Action", "Tag UID", "Quantity"], rows);
   };
   const { data: summary } = useSuspenseQuery(auditSummaryQuery);
-  const { data: movements } = useSuspenseQuery(movementsQuery(page));
+  const { data: movements } = useSuspenseQuery(movementsQuery(page, search, actionFilter));
   const totalPages = Math.ceil(movements.total / movements.limit);
 
   const handleSearch = () => {
@@ -352,7 +353,7 @@ function AuditPage() {
             <div className="bg-surface-container-lowest p-md border-t border-outline-variant flex flex-wrap justify-between items-center gap-md">
               <span className="text-xs text-secondary">
                 Showing {" "}
-                <span className="font-bold text-on-surface">{(page - 1) * 25 + 1}–{Math.min(page * 25, movements.total)}</span>{" "}
+                <span className="font-bold text-on-surface">{(page - 1) * 10 + 1}–{Math.min(page * 10, movements.total)}</span>{" "}
                 of {" "}
                 <span className="font-bold text-on-surface">{movements.total.toLocaleString()}</span>{" "}
                 entries

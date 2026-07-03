@@ -134,7 +134,64 @@ function SyncTick({ seconds }: { seconds: number }) { // ? Live-ticking seconds 
   return <>{s}s ago</>;
 }
 
+function HeatmapBackground() {
+  const { data: heatmap } = useSuspenseQuery(heatmapQuery);
+  const total = (heatmap.rows || 4) * (heatmap.cols || 4);
+  return (
+    <div className="absolute inset-0 grid grid-cols-8 md:grid-cols-12 gap-0.5 opacity-[0.06] pointer-events-none select-none">
+      {Array.from({ length: Math.max(total, 48) }, (_, i) => {
+        const cell = heatmap.zones.length > 0
+          ? heatmap.zones.find((z: any) => z.row === Math.floor(i / 12) && z.col === i % 12)
+          : null;
+        const color = !cell ? "bg-secondary"
+          : cell.status === "full" ? "bg-green-600"
+          : cell.status === "partial" ? "bg-primary"
+          : cell.status === "critical" ? "bg-error"
+          : "bg-secondary";
+        return <div key={i} className={`${color} rounded-sm`} />;
+      })}
+    </div>
+  );
+}
+
+function HeatmapGrid({ size = "compact" }: { size?: "compact" | "expanded" }) {
+  const { data: heatmap } = useSuspenseQuery(heatmapQuery);
+  const cols = size === "expanded" ? 8 : (heatmap.cols || 4);
+  const rows = size === "expanded" ? 8 : (heatmap.rows || 4);
+
+  return heatmap.zones.length === 0 ? (
+    <div className="flex flex-col items-center justify-center text-secondary gap-sm p-lg">
+      <span className="material-symbols-outlined text-[40px] text-outline-variant">grid_view</span>
+      <p className="text-[11px] uppercase tracking-wider font-semibold">No zones configured</p>
+    </div>
+  ) : (
+    Array.from({ length: rows * cols }, (_, i) => {
+      const cell = heatmap.zones.find((z) => z.row === Math.floor(i / cols) && z.col === i % cols);
+      const cls = !cell ? "bg-surface-container border-outline-variant opacity-30"
+        : cell.status === "full" ? "bg-green-100 border-green-200"
+        : cell.status === "partial" ? "bg-primary-fixed border-primary"
+        : cell.status === "critical" ? "bg-primary border-primary animate-pulse"
+        : "bg-surface-container border-outline-variant";
+      return (
+        <div key={i} className={`relative border rounded-sm flex items-center justify-center group transition-all ${cls}`}
+          style={size === "expanded" ? { minHeight: "72px" } : undefined}>
+          {cell ? (
+            <>
+              <div className="flex flex-col items-center">
+                <span className={`font-mono text-secondary font-bold select-none leading-tight ${size === "expanded" ? "text-sm" : "text-[9px]"}`}>{cell.label}</span>
+                <span className={`text-secondary/60 font-mono mt-0.5 ${size === "expanded" ? "text-xs" : "text-[7px]"}`}>{cell.item_count}u</span>
+              </div>
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors rounded-sm" />
+            </>
+          ) : null}
+        </div>
+      );
+    })
+  );
+}
+
 function DashboardPage() {
+  const [expanded, setExpanded] = useState(false);
   const { data: inventoryData } = useSuspenseQuery(inventoryQuery);
   const { data: kpis } = useSuspenseQuery(kpisQuery);
   const { data: activity } = useSuspenseQuery(activityQuery);
@@ -168,27 +225,35 @@ function DashboardPage() {
   return (
     <AppShell>
       <main className="flex-1 p-margin-desktop animate-fade-in">
-        <div className="flex justify-between items-end mb-xl">
-          <div>
-            <h1 className="text-3xl font-bold text-on-surface tracking-tight">Smart Bin Inventory</h1>
-            <p className="text-secondary mt-xs">Real-time IoT telemetry from Warehouse Node Alpha</p>
-          </div>
-          <div className="flex gap-md">
-            <button onClick={exportReport} className="bg-surface-container text-on-surface px-lg py-sm text-[12px] font-bold uppercase tracking-wider rounded border border-outline-variant hover:bg-surface-container-high transition-colors flex items-center gap-sm">
-              <span className="material-symbols-outlined text-[18px]">download</span>
-              Export Report
-            </button>
-            <button className="bg-primary text-on-primary px-lg py-sm text-[12px] font-bold uppercase tracking-wider rounded hover:opacity-90 transition-opacity flex items-center gap-sm">
-              <span className="material-symbols-outlined text-[18px]">add</span>
-              Manual Adjust
-            </button>
+        <div className="relative overflow-hidden rounded-xl bg-surface-container-lowest border border-outline-variant p-lg md:p-xl mb-xl">
+          <HeatmapBackground />
+          <div className="relative z-10 flex justify-between items-end">
+            <div>
+              <h1 className="text-3xl font-bold text-on-surface tracking-tight">Smart Bin Inventory</h1>
+              <p className="text-secondary mt-xs">Real-time IoT telemetry from Warehouse Node Alpha</p>
+            </div>
+            <div className="flex gap-md">
+              <button onClick={() => setExpanded(true)}
+                className="bg-surface-container text-on-surface px-lg py-sm text-[12px] font-bold uppercase tracking-wider rounded border border-outline-variant hover:bg-surface-container-high transition-colors flex items-center gap-sm">
+                <span className="material-symbols-outlined text-[18px]">grid_view</span>
+                Bay Heatmap
+              </button>
+              <button onClick={exportReport} className="bg-surface-container text-on-surface px-lg py-sm text-[12px] font-bold uppercase tracking-wider rounded border border-outline-variant hover:bg-surface-container-high transition-colors flex items-center gap-sm">
+                <span className="material-symbols-outlined text-[18px]">download</span>
+                Export Report
+              </button>
+              <button className="bg-primary text-on-primary px-lg py-sm text-[12px] font-bold uppercase tracking-wider rounded hover:opacity-90 transition-opacity flex items-center gap-sm">
+                <span className="material-symbols-outlined text-[18px]">add</span>
+                Manual Adjust
+              </button>
+            </div>
           </div>
         </div>
 
         {/* KPIs */}
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-lg mb-xl animate-stagger">
           <KPI label="Total Parts" value={kpis.total_parts.toLocaleString()} icon="inventory_2" />
-          <KPI label="Active Areas" value={kpis.bins_active.toLocaleString()} icon="sensors" /> {/* ? Changed label to Active Areas */}
+          <KPI label="Active Areas" value={kpis.bins_active.toLocaleString()} icon="sensors" />
           <KPI label="Critical Alerts" value={kpis.critical_alerts.toLocaleString()} icon="warning" accent />
           <KPI label="Last Update" value={<SyncTick seconds={kpis.last_update_seconds} />} suffix="" icon="update" />
         </div>
@@ -265,7 +330,7 @@ function DashboardPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-lg py-md text-right">
+                      <td className="px-1.5 py-md text-center">
                         <StatusPill s={r.status} />
                       </td>
                     </tr>
@@ -305,59 +370,6 @@ function DashboardPage() {
               </Link>
             </div>
 
-            <div className="bg-surface-container-lowest border border-outline-variant rounded p-lg shadow-sm">
-              <div className="flex justify-between items-center mb-md">
-                <h4 className="text-lg font-bold">Bay Heatmap</h4>
-                <span className="text-[11px] text-secondary font-semibold font-mono">{heatmap.zones.length} zones active</span>
-              </div>
-              <div className="aspect-square bg-surface-container rounded border border-outline-variant relative p-md grid grid-cols-4 grid-rows-4 gap-xs">
-                {heatmap.zones.length === 0 ? (
-                  <div className="col-span-4 row-span-4 flex flex-col items-center justify-center text-secondary gap-sm">
-                    <span className="material-symbols-outlined text-[40px] text-outline-variant">grid_view</span>
-                    <p className="text-[11px] uppercase tracking-wider font-semibold">No zones configured</p>
-                  </div>
-                ) : (
-                  Array.from({ length: heatmap.rows * heatmap.cols }, (_, i) => {
-                    const cell = heatmap.zones.find((z) => z.row === Math.floor(i / heatmap.cols) && z.col === i % heatmap.cols);
-                    const cls = !cell ? "bg-surface-container border-outline-variant opacity-30"
-                      : cell.status === "full" ? "bg-green-100 border-green-200"
-                      : cell.status === "partial" ? "bg-primary-fixed border-primary"
-                      : cell.status === "critical" ? "bg-primary border-primary animate-pulse"
-                      : "bg-surface-container border-outline-variant";
-                    return (
-                      <div key={i} className={`relative border rounded-sm flex items-center justify-center group transition-all ${cls}`}>
-                        {cell ? (
-                          <>
-                            <div className="flex flex-col items-center">
-                              <span className="text-[9px] font-mono text-secondary font-bold select-none leading-tight">{cell.label}</span>
-                              <span className="text-[7px] text-secondary/60 font-mono mt-0.5">{cell.item_count}u</span>
-                            </div>
-                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors rounded-sm" />
-                          </>
-                        ) : null}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-              <div className="flex items-center justify-center gap-lg mt-md">
-                {[
-                  { color: "bg-green-100 border-green-200", label: "Stocked" },
-                  { color: "bg-primary-fixed border-primary", label: "Partial" },
-                  { color: "bg-primary border-primary", label: "Critical" },
-                  { color: "bg-surface-container border-outline-variant", label: "Empty" },
-                ].map((l) => (
-                  <div key={l.label} className="flex items-center gap-1.5">
-                    <div className={`w-2.5 h-2.5 rounded-sm border ${l.color}`} />
-                    <span className="text-[10px] text-secondary uppercase tracking-wider font-semibold">{l.label}</span>
-                  </div>
-                ))}
-              </div>
-              <p className="text-[10px] text-secondary mt-md uppercase tracking-widest text-center font-semibold">
-                Node Alpha Sector B · Real-time Occupancy
-              </p>
-            </div>
-
             {/* <div className="bg-surface-container-high p-lg rounded border border-outline shadow-sm">
               <div className="flex items-center justify-between mb-md">
                 <span className="text-[12px] font-bold uppercase tracking-widest text-secondary">Warehouse Health</span>
@@ -382,6 +394,42 @@ function DashboardPage() {
           </div>
         </div>
       </main>
+
+      {/* Expanded heatmap overlay */}
+      {expanded && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-lg"
+          onClick={() => setExpanded(false)}>
+          <div className="bg-surface-container-lowest rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-xl"
+            onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-lg">
+              <h3 className="text-xl font-bold">Bay Heatmap — Full View</h3>
+              <button onClick={() => setExpanded(false)}
+                className="w-8 h-8 flex items-center justify-center rounded hover:bg-surface-container transition-colors text-secondary hover:text-on-surface">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <div className="bg-surface-container rounded border border-outline-variant p-md grid grid-cols-8 gap-md" style={{ minHeight: "400px" }}>
+              <HeatmapGrid size="expanded" />
+            </div>
+            <div className="flex items-center justify-center gap-lg mt-lg">
+              {[
+                { color: "bg-green-100 border-green-200", label: "Stocked" },
+                { color: "bg-primary-fixed border-primary", label: "Partial" },
+                { color: "bg-primary border-primary", label: "Critical" },
+                { color: "bg-surface-container border-outline-variant", label: "Empty" },
+              ].map((l) => (
+                <div key={l.label} className="flex items-center gap-1.5">
+                  <div className={`w-3 h-3 rounded-sm border ${l.color}`} />
+                  <span className="text-xs text-secondary uppercase tracking-wider font-semibold">{l.label}</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-secondary mt-lg uppercase tracking-widest text-center font-semibold">
+              Node Alpha Sector B · Real-time Occupancy
+            </p>
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }

@@ -34,7 +34,7 @@ class ConnectionManager:
             except Exception:
                 pass # Ignore dropped connections
 manager = ConnectionManager()
-low_stock=1
+low_stock=10
 critical=0
 # ? Added lifespan to manage MQTT client background thread and enrollment service
 @asynccontextmanager
@@ -264,11 +264,11 @@ def get_kpis(db: Session = Depends(get_db)):
     critical_alerts = db.query(models.Inventory).filter(models.Inventory.quantity < critical).count()
     
     # ? Compute real seconds since last transaction for the live sync countdown
-    latest_tx = db.query(models.Transaction).order_by(models.Transaction.tx_timestamp.desc()).first()
+    latest_tx = db.query(models.Transaction).order_by(models.Transaction.tx_timestamp.desc()).first()#type: ignore
     if latest_tx:
         raw_ts = latest_tx.tx_timestamp
-        tx_ts = raw_ts.replace(tzinfo=timezone.utc) if raw_ts.tzinfo is None else raw_ts
-        last_update_seconds = round((datetime.now(timezone.utc) - tx_ts).total_seconds())
+        tx_ts = raw_ts.replace(tzinfo=timezone.utc) if raw_ts.tzinfo is None else raw_ts#type: ignore
+        last_update_seconds = round((datetime.now(timezone.utc) - tx_ts).total_seconds())#type: ignore
     else:
         last_update_seconds = 0
     

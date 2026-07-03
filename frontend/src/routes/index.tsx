@@ -330,7 +330,7 @@ function DashboardPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-1.5 py-md text-center">
+                      <td className="px-1.5 py-md text-center ">
                         <StatusPill s={r.status} />
                       </td>
                     </tr>

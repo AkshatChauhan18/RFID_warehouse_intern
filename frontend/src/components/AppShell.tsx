@@ -1,7 +1,7 @@
 import { Link, useRouter, useRouterState } from "@tanstack/react-router";
 import { useState, useEffect, createContext, useContext, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-
+import logo from "../assets/LGE_2D+LG Electronics_Logo_HeritageRed_Grey_RGB.svg"
 // ? Shared context so any page can signal a transaction reset to SyncTick components
 const TxContext = createContext<{ count: number; signal: () => void }>({ count: 0, signal: () => {} });
 export const useTxSignal = () => useContext(TxContext);
@@ -49,7 +49,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <TxContext.Provider value={{ count: txSignal, signal: () => setTxSignal((s) => s + 1) }}>
     <div className="min-h-screen bg-background text-on-surface">
       {/* Sidebar */}
-      <aside className="h-screen w-64 fixed left-0 top-0 bg-surface-container-low border-r border-outline-variant z-40 flex flex-col py-lg">
+      <aside className="h-screen w-64 fixed left-0 top-0 bg-surface-container-low border-r border-outline-variant z-40 flex flex-col pt-lg">
         <div className="px-lg mb-xl flex items-center gap-md">
           <div className="w-10 h-10 bg-primary-fixed-dim rounded flex items-center justify-center">
             <span className="material-symbols-outlined text-primary">warehouse</span>
@@ -84,13 +84,14 @@ export function AppShell({ children }: { children: ReactNode }) {
             </a>
           ))}
         </nav>
-        <div className="mt-auto pt-lg border-t border-outline-variant">
+        <div className="mt-auto h-[80px] border-t border-outline-variant flex items-center px-lg">
           {footerNav.map((n) => (
-            <a key={n.label} href="#" className="text-secondary flex items-center gap-md px-lg py-md hover:bg-surface-container hover:text-on-surface transition-all">
+            <a key={n.label} href="#" className="text-secondary flex items-center gap-md py-md hover:bg-surface-container hover:text-on-surface transition-all">
               <span className="material-symbols-outlined">{n.icon}</span>
               <span className="text-[12px] font-semibold uppercase tracking-wider">{n.label}</span>
             </a>
           ))}
+          <img src={logo} alt="LG Electronics" className="max-h-8" />
         </div>
       </aside>
 

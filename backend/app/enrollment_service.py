@@ -32,6 +32,11 @@ class EnrollmentService:
         # self._mqtt.start_inventory()
         logger.info("Enrollment: Started")
 
+    async def stop(self):
+        # ? Deactivates enrollment so tracking resumes, but keeps pending tags for confirmation
+        self._is_active = False
+        logger.info("Enrollment: Stopped (pending tags preserved for confirmation)")
+
     async def cancel(self):
         # ? Stops scan and clears pending data without saving
         # self._mqtt.stop_inventory()

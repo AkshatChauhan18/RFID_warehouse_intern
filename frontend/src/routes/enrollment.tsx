@@ -33,6 +33,9 @@ async function apiConfirmEnrollment(partId: number) {
     body: JSON.stringify({ part_id: partId }),
   }).then(r => r.json());
 }
+async function apiStopEnrollment() {
+  return fetch(`${BASE_URL}/api/v1/enrollment/stop`, { method: "POST" }).then(r => r.json());
+}
 async function apiCancelEnrollment() {
   return fetch(`${BASE_URL}/api/v1/enrollment/cancel`, { method: "POST" }).then(r => r.json());
 }
@@ -114,7 +117,7 @@ function EnrollmentPage() {
 
     }
     else{
-      // await apiCancelEnrollment();
+      await apiStopEnrollment();
       setIsScanning(false);
     }
     // setIsScanning((s) => !s);

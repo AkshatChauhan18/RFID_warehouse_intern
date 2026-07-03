@@ -486,6 +486,12 @@ async def confirm_enrollment(body: schemas.EnrollmentConfirm, request: Request, 
     result = await service.confirm(part_id=body.part_id, db=db)
     return result
 
+@app.post("/api/v1/enrollment/stop", response_model=schemas.EnrollmentCancelResponse)
+async def stop_enrollment(request: Request):
+    service = request.app.state.enrollment_service
+    await service.stop()
+    return {"status": "stopped"}
+
 @app.post("/api/v1/enrollment/cancel", response_model=schemas.EnrollmentCancelResponse)
 async def cancel_enrollment(request: Request):
     service = request.app.state.enrollment_service

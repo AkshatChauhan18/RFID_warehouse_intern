@@ -1,3 +1,4 @@
+// !ansh: removed createServerFn wrappers — plain async functions call FastAPI directly with auth from localStorage
 import { fetchInventory, fetchKpis, fetchActivity, fetchMovements, fetchAuditSummary, fetchPaginatedInventory, fetchHeatmap } from "./api-function";
 
 export const getInventory = async () => {

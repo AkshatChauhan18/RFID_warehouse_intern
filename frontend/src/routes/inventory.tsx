@@ -10,6 +10,7 @@ import { useTxSignal } from "@/components/AppShell"; // ? Transaction signal for
 /*  Query factories                                                    */
 /* ------------------------------------------------------------------ */
 
+// !ansh: queries now call plain async functions (no createServerFn), token read from localStorage inside fetchWithAuth
 const kpisQuery = queryOptions({
   queryKey: ["kpis"],
   queryFn: () => getKpis(),
@@ -59,6 +60,7 @@ export const Route = createFileRoute("/inventory")({
     search: (search.search as string) || "",
   }),
   loaderDeps: ({ search: { search } }) => ({ search }),
+  // !ansh: prefetchQuery instead of ensureQueryData — SSR data fetch failures don't crash the page
   loader: ({ context, deps: { search } }) => {
     context.queryClient.prefetchQuery(kpisQuery);
     context.queryClient.prefetchQuery(inventoryPageQuery(1, 10, search, ""));

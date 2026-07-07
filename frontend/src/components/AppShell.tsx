@@ -126,6 +126,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <div className="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center">
                 <span className="material-symbols-outlined text-primary">account_circle</span>
               </div>
+              {/* !ansh: show actual logged-in username from localStorage */}
               <span className="text-[12px] font-bold text-primary tracking-wider">
                 {typeof localStorage !== "undefined" ? localStorage.getItem("username") || "OPERATOR" : "OPERATOR"}
               </span>

@@ -3,6 +3,7 @@ const getBaseUrl = () => {
   return url.replace(/\/$/, "");
 };
 
+// !ansh: added fetchWithAuth for JWT Bearer token injection and 401 redirect
 export async function fetchWithAuth(url: string, options: RequestInit = {}, tokenOverride?: string) {
   const token = tokenOverride || (typeof localStorage !== "undefined" ? localStorage.getItem("token") : null);
   const headers: Record<string, string> = {

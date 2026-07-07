@@ -1,3 +1,4 @@
+# !ansh: new auth module with Argon2 hashing, JWT tokens, and get_current_user dependency
 from datetime import datetime, timedelta, timezone
 import jwt
 from pwdlib import PasswordHash

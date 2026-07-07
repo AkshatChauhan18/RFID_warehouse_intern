@@ -6,6 +6,7 @@ import { getInventory, getKpis, getActivity, getHeatmap } from "@/lib/warehouse.
 import { useTxSignal } from "@/components/AppShell"; // ? Transaction signal for sync reset
 import { downloadCSV } from "@/lib/csv"; // ? CSV export utility
 
+// !ansh: queries now call plain async functions (no createServerFn), token read from localStorage inside fetchWithAuth
 const inventoryQuery = queryOptions({
   queryKey: ["inventory"],
   queryFn: () => getInventory(),
@@ -55,6 +56,7 @@ function DashboardSkeleton() {
 }
 
 export const Route = createFileRoute("/")({
+  // !ansh: prefetchQuery instead of ensureQueryData — SSR data fetch failures don't crash the page
   loader: ({ context }) => {
     context.queryClient.prefetchQuery(inventoryQuery);
     context.queryClient.prefetchQuery(kpisQuery);

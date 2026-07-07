@@ -11,6 +11,7 @@ export const Route = createFileRoute("/auth")({
   component: AuthPage,
 });
 
+// !ansh: added to call backend /api/v1/login endpoint
 const getBaseUrl = () => {
   const url = process.env.FASTAPI_BASE_URL || "http://localhost:8000";
   return url.replace(/\/$/, "");
@@ -22,6 +23,7 @@ function AuthPage() {
   const [pw, setPw] = useState("");
   const [error, setError] = useState("");
 
+  // !ansh: wired login form to POST /api/v1/login, stores JWT in localStorage
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");

@@ -5,6 +5,7 @@ import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
 import { getMovements, getAuditSummary } from "@/lib/warehouse.functions";
 import { downloadCSV } from "@/lib/csv"; // ? CSV export utility
 
+// !ansh: query calls plain async function (no createServerFn), token read from localStorage inside fetchWithAuth
 //TODO:just a info , added this part:
 const auditSummaryQuery = queryOptions({
   queryKey: ["audit-summary"],
@@ -44,6 +45,7 @@ function AuditSkeleton() {
 }
 
 export const Route = createFileRoute("/audit")({
+  // !ansh: prefetchQuery instead of ensureQueryData — SSR data fetch failures don't crash the page
   loader: ({ context }) => {
     context.queryClient.prefetchQuery(auditSummaryQuery);
     context.queryClient.prefetchQuery(movementsQuery(1, "", ""));

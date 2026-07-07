@@ -6,7 +6,7 @@ import {
   useRouter,
   HeadContent,
   Scripts,
-  redirect,
+  redirect, // !ansh: added for auth route guard
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 
@@ -75,6 +75,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  // !ansh: added route guard — redirects to /auth if no JWT token, SSR-safe
   beforeLoad: ({ location }) => {
     if (typeof localStorage !== "undefined") {
       const token = localStorage.getItem("token");

@@ -21,6 +21,7 @@ interface ScannedTag {
   rssi: number;
 }
 
+// !ansh: changed bare fetch calls to fetchWithAuth for JWT auth
 // ? Added real API endpoints for backend communication
 const BASE_URL = process.env.FASTAPI_BASE_URL || "http://localhost:8000";
 

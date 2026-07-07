@@ -50,6 +50,7 @@ def seed_database():
         
         db.commit()
 
+        # !ansh: seed admin user for authentication
         print("5. Creating Default Operator User...")
         if not db.query(models.User).filter(models.User.email == "admin@logistix.com").first():
             admin = models.User(

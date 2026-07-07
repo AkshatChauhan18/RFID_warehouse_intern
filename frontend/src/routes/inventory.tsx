@@ -24,7 +24,7 @@ const inventoryPageQuery = (
   queryOptions({
     queryKey: ["inventory-page", page, limit, search, status],
     queryFn: () =>
-      getPaginatedInventory({ data: { page, limit, search, status } }),
+      getPaginatedInventory({ page, limit, search, status }),
   });
 
 /* ------------------------------------------------------------------ */
@@ -60,8 +60,8 @@ export const Route = createFileRoute("/inventory")({
   }),
   loaderDeps: ({ search: { search } }) => ({ search }),
   loader: ({ context, deps: { search } }) => {
-    context.queryClient.ensureQueryData(kpisQuery);
-    context.queryClient.ensureQueryData(inventoryPageQuery(1, 10, search, ""));
+    context.queryClient.prefetchQuery(kpisQuery);
+    context.queryClient.prefetchQuery(inventoryPageQuery(1, 10, search, ""));
   },
   head: () => ({
     meta: [

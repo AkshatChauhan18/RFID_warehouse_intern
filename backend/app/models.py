@@ -37,6 +37,13 @@ class Inventory(Base):
         CheckConstraint('quantity >= 0', name='check_positive_quantity'),
     )
 
+class User(Base):
+    __tablename__ = "users"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    email: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    username: Mapped[str] = mapped_column(String(50))
+    hashed_password: Mapped[str] = mapped_column(String(255))
+
 class Transaction(Base):
     __tablename__ = "transactions"
 

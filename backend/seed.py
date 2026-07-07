@@ -1,5 +1,6 @@
 from app.database import SessionLocal
 from app import models
+from app.auth import get_password_hash
 
 def seed_database():
     db = SessionLocal()
@@ -48,6 +49,19 @@ def seed_database():
         db.add_all([tx1, tx2, tx3])
         
         db.commit()
+
+        print("5. Creating Default Operator User...")
+        if not db.query(models.User).filter(models.User.email == "admin@logistix.com").first():
+            admin = models.User(
+                email="admin@logistix.com",
+                username="Admin",
+                hashed_password=get_password_hash("admin123"),
+            )
+            db.add(admin)
+            db.commit()
+            print("   ✅ Admin user created (email: admin@logistix.com / password: admin123)")
+        else:
+            print("   ⏭️  Admin user already exists, skipping.")
 
         print("✅ Database successfully seeded with decoupled identity workflow!")
 

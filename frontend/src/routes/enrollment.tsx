@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { AppShell } from "@/components/AppShell";
+import { fetchWithAuth } from "@/lib/api-function";
 
 export const Route = createFileRoute("/enrollment")({
   head: () => ({
@@ -24,23 +25,28 @@ interface ScannedTag {
 const BASE_URL = process.env.FASTAPI_BASE_URL || "http://localhost:8000";
 
 async function apiStartEnrollment() {
-  return fetch(`${BASE_URL}/api/v1/enrollment/start`, { method: "POST" }).then(r => r.json());
+  const r = await fetchWithAuth(`${BASE_URL}/api/v1/enrollment/start`, { method: "POST" });
+  return r.json();
 }
 async function apiConfirmEnrollment(partId: number) {
-  return fetch(`${BASE_URL}/api/v1/enrollment/confirm`, {
+  const r = await fetchWithAuth(`${BASE_URL}/api/v1/enrollment/confirm`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ part_id: partId }),
-  }).then(r => r.json());
+  });
+  return r.json();
 }
 async function apiStopEnrollment() {
-  return fetch(`${BASE_URL}/api/v1/enrollment/stop`, { method: "POST" }).then(r => r.json());
+  const r = await fetchWithAuth(`${BASE_URL}/api/v1/enrollment/stop`, { method: "POST" });
+  return r.json();
 }
 async function apiCancelEnrollment() {
-  return fetch(`${BASE_URL}/api/v1/enrollment/cancel`, { method: "POST" }).then(r => r.json());
+  const r = await fetchWithAuth(`${BASE_URL}/api/v1/enrollment/cancel`, { method: "POST" });
+  return r.json();
 }
 async function apiFetchParts() {
-  return fetch(`${BASE_URL}/api/v1/parts`).then(r => r.json());
+  const r = await fetchWithAuth(`${BASE_URL}/api/v1/parts`);
+  return r.json();
 }
 
 /* ── Helpers ───────────────────────────────────────────── */

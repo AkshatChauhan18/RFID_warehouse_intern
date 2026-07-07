@@ -3,24 +3,41 @@ const getBaseUrl = () => {
   return url.replace(/\/$/, "");
 };
 
-export async function fetchInventory(): Promise<any[]> {
-  const res = await fetch(`${getBaseUrl()}/api/v1/inventory`);
+export async function fetchWithAuth(url: string, options: RequestInit = {}, tokenOverride?: string) {
+  const token = tokenOverride || (typeof localStorage !== "undefined" ? localStorage.getItem("token") : null);
+  const headers: Record<string, string> = {
+    ...(options.headers as Record<string, string>),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+  const res = await fetch(url, { ...options, headers });
+
+  if (res.status === 401 && typeof localStorage !== "undefined") {
+    localStorage.removeItem("token");
+    localStorage.removeItem("username");
+    window.location.href = "/auth";
+    throw new Error("Unauthorized");
+  }
+  return res;
+}
+
+export async function fetchInventory(token?: string): Promise<any[]> {
+  const res = await fetchWithAuth(`${getBaseUrl()}/api/v1/inventory`, {}, token);
   if (!res.ok) throw new Error(`Failed to fetch inventory: ${res.status}`);
   return res.json();
 }
 
-export async function fetchKpis(): Promise<{
+export async function fetchKpis(token?: string): Promise<{
   total_parts: number;
   bins_active: number;
   critical_alerts: number;
   last_update_seconds: number;
 }> {
-  const res = await fetch(`${getBaseUrl()}/api/v1/dashboard/kpis`);
+  const res = await fetchWithAuth(`${getBaseUrl()}/api/v1/dashboard/kpis`, {}, token);
   if (!res.ok) throw new Error(`Failed to fetch KPIs: ${res.status}`);
   return res.json();
 }
 
-export async function fetchActivity(): Promise<{
+export async function fetchActivity(token?: string): Promise<{
   activities: {
     icon: string;
     title: string;
@@ -28,7 +45,7 @@ export async function fetchActivity(): Promise<{
     time: string;
   }[];
 }> {
-  const res = await fetch(`${getBaseUrl()}/api/v1/dashboard/activity`);
+  const res = await fetchWithAuth(`${getBaseUrl()}/api/v1/dashboard/activity`, {}, token);
   if (!res.ok) throw new Error(`Failed to fetch activity: ${res.status}`);
   return res.json();
 }
@@ -50,22 +67,22 @@ export async function fetchMovements(page: number = 1, limit: number = 25, searc
   const qs = new URLSearchParams({ page: page.toString(), limit: limit.toString() });
   if (search) qs.set("search", search);
   if (action) qs.set("action", action);
-  const res = await fetch(`${getBaseUrl()}/api/v1/audit/movements?${qs}`);
+  const res = await fetchWithAuth(`${getBaseUrl()}/api/v1/audit/movements?${qs}`);
   if (!res.ok) throw new Error(`Failed to fetch movements: ${res.status}`);
   return res.json();
 }
 
-export async function fetchAuditSummary(): Promise<{
+export async function fetchAuditSummary(token?: string): Promise<{
   todays_throughput: number;
   active_tag_uids: number;
   inbound_rate: number;
 }> {
-  const res = await fetch(`${getBaseUrl()}/api/v1/audit/summary`);
+  const res = await fetchWithAuth(`${getBaseUrl()}/api/v1/audit/summary`, {}, token);
   if (!res.ok) throw new Error(`Failed to fetch audit summary: ${res.status}`);
   return res.json();
 }
 
-export async function fetchHeatmap(): Promise<{
+export async function fetchHeatmap(token?: string): Promise<{
   rows: number;
   cols: number;
   zones: {
@@ -77,7 +94,7 @@ export async function fetchHeatmap(): Promise<{
     part_count: number;
   }[];
 }> {
-  const res = await fetch(`${getBaseUrl()}/api/v1/heatmap`);
+  const res = await fetchWithAuth(`${getBaseUrl()}/api/v1/heatmap`, {}, token);
   if (!res.ok) throw new Error(`Failed to fetch heatmap: ${res.status}`);
   return res.json();
 }
@@ -94,7 +111,7 @@ export async function fetchPaginatedInventory(params: {
   items: {
     name: string;
     sku: string;
-    area: string; // ? Changed from bin
+    area: string;
     qty: number;
     status: string;
   }[];
@@ -105,7 +122,7 @@ export async function fetchPaginatedInventory(params: {
     search: params.search,
     status: params.status,
   });
-  const res = await fetch(`${getBaseUrl()}/api/v1/inventory/paginated?${qs}`);
+  const res = await fetchWithAuth(`${getBaseUrl()}/api/v1/inventory/paginated?${qs}`);
   if (!res.ok) throw new Error(`Failed to fetch paginated inventory: ${res.status}`);
   return res.json();
-}
+}

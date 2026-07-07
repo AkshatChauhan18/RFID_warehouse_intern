@@ -11,10 +11,42 @@ export const Route = createFileRoute("/auth")({
   component: AuthPage,
 });
 
+const getBaseUrl = () => {
+  const url = process.env.FASTAPI_BASE_URL || "http://localhost:8000";
+  return url.replace(/\/$/, "");
+};
+
 function AuthPage() {
   const navigate = useNavigate();
-  const [user, setUser] = useState("");
+  const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
+  const [error, setError] = useState("");
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    const formData = new URLSearchParams();
+    formData.append("username", email);
+    formData.append("password", pw);
+
+    try {
+      const res = await fetch(`${getBaseUrl()}/api/v1/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: formData,
+      });
+
+      if (!res.ok) throw new Error("Invalid credentials");
+
+      const data = await res.json();
+      localStorage.setItem("token", data.access_token);
+      localStorage.setItem("username", data.username);
+      navigate({ to: "/" });
+    } catch {
+      setError("Authentication failed. Please check your Email and Security Key.");
+    }
+  };
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-background text-on-surface">
@@ -41,15 +73,13 @@ function AuthPage() {
             <div className="h-[2px] w-12 bg-primary mt-sm" />
           </div>
 
-          <form
-            className="space-y-lg"
-            onSubmit={(e) => {
-              e.preventDefault();
-              navigate({ to: "/" });
-            }}
-          >
-            <Field id="username" icon="person" label="Operator ID" placeholder="Enter ID" value={user} onChange={setUser} />
+          <form className="space-y-lg" onSubmit={handleLogin}>
+            <Field id="email" icon="mail" label="Operator Email" placeholder="Enter Email" value={email} onChange={setEmail} />
             <Field id="password" icon="lock" label="Security Key" placeholder="••••••••" type="password" value={pw} onChange={setPw} />
+
+            {error && (
+              <p className="text-[13px] text-red-500 font-semibold text-center">{error}</p>
+            )}
 
             <div className="flex items-center gap-sm pt-xs">
               <div className="w-2 h-2 rounded-full bg-secondary" />

@@ -5,6 +5,7 @@ import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
 import { getInventory, getKpis, getActivity, getHeatmap } from "@/lib/warehouse.functions";
 import { useTxSignal } from "@/components/AppShell"; // ? Transaction signal for sync reset
 import { downloadCSV } from "@/lib/csv"; // ? CSV export utility
+
 const inventoryQuery = queryOptions({
   queryKey: ["inventory"],
   queryFn: () => getInventory(),
@@ -55,10 +56,10 @@ function DashboardSkeleton() {
 
 export const Route = createFileRoute("/")({
   loader: ({ context }) => {
-    context.queryClient.ensureQueryData(inventoryQuery);
-    context.queryClient.ensureQueryData(kpisQuery);
-    context.queryClient.ensureQueryData(activityQuery);
-    context.queryClient.ensureQueryData(heatmapQuery);
+    context.queryClient.prefetchQuery(inventoryQuery);
+    context.queryClient.prefetchQuery(kpisQuery);
+    context.queryClient.prefetchQuery(activityQuery);
+    context.queryClient.prefetchQuery(heatmapQuery);
   },
   head: () => ({
     meta: [

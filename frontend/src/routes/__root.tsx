@@ -6,6 +6,7 @@ import {
   useRouter,
   HeadContent,
   Scripts,
+  redirect,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 
@@ -74,6 +75,17 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  beforeLoad: ({ location }) => {
+    if (typeof localStorage !== "undefined") {
+      const token = localStorage.getItem("token");
+      if (!token && location.pathname !== "/auth") {
+        throw redirect({ to: "/auth" });
+      }
+      if (token && location.pathname === "/auth") {
+        throw redirect({ to: "/" });
+      }
+    }
+  },
   head: () => ({
     meta: [
       { charSet: "utf-8" },

@@ -1,10 +1,12 @@
 from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from typing import List
 from sqlalchemy import func
 from app import models, schemas
+from app.auth import get_current_user, create_access_token, verify_password, get_db
 from fastapi import WebSocket, WebSocketDisconnect
 
 # ? Added imports for MQTT client and enrollment service
@@ -78,13 +80,20 @@ app.add_middleware(
 )
 
 
-# 2. Database Session Manager
-def get_db():
-    db = models.SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+@app.post("/api/v1/login")
+def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.email == form_data.username).first()
+    if not user or not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+        )
+    access_token = create_access_token(data={"sub": user.email, "username": user.username})
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "username": user.username,
+    }
 
 
 @app.websocket("/api/v1/ws")
@@ -106,7 +115,7 @@ def health_check():
 
 
 @app.get("/api/v1/parts", response_model=List[schemas.PartResponse])
-def get_all_parts(db: Session = Depends(get_db)):
+def get_all_parts(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     """
     Fetch the entire parts catalog from PostgreSQL.
     """
@@ -115,7 +124,7 @@ def get_all_parts(db: Session = Depends(get_db)):
 
 
 @app.get("/api/v1/inventory", response_model=List[schemas.InventoryResponse])
-def get_inventory(db: Session = Depends(get_db)):
+def get_inventory(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     # Join Inventory with Part and Area tables
     rows = (
         db.query(models.Inventory, models.Part, models.Area)
@@ -137,7 +146,7 @@ def get_inventory(db: Session = Depends(get_db)):
 
 
 @app.post("/api/v1/enrollrfid", status_code=status.HTTP_201_CREATED)
-def enroll_rfid(payload: schemas.EnrollmentData, db: Session = Depends(get_db)):
+def enroll_rfid(payload: schemas.EnrollmentData, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     # Implementation for enrolling RFID tag
     existing_tag = (
         db.query(models.RFIDTag)
@@ -161,7 +170,7 @@ def enroll_rfid(payload: schemas.EnrollmentData, db: Session = Depends(get_db)):
 
 
 @app.post(("/api/v1/scan"), status_code=status.HTTP_201_CREATED)
-async def process_hardware_scan(payload: schemas.HardwareScan, db: Session = Depends(get_db)):
+async def process_hardware_scan(payload: schemas.HardwareScan, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     area_record = (
         db.query(models.Area).filter(models.Area.bin_label == payload.area_label).first()
     )
@@ -258,7 +267,7 @@ async def process_hardware_scan(payload: schemas.HardwareScan, db: Session = Dep
         raise HTTPException(status_code=500, detail="Database transaction failed.")
     
 @app.get("/api/v1/dashboard/kpis")
-def get_kpis(db: Session = Depends(get_db)):
+def get_kpis(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     total_parts = db.query(func.coalesce(func.sum(models.Inventory.quantity), 0)).scalar()
     areas_active = db.query(models.Area).filter(models.Area.is_active == True).count()
     critical_alerts = db.query(models.Inventory).filter(models.Inventory.quantity < critical).count()
@@ -279,7 +288,7 @@ def get_kpis(db: Session = Depends(get_db)):
         "last_update_seconds": last_update_seconds  # ? Computed from latest transaction timestamp
     }
 @app.get("/api/v1/dashboard/activity")
-def get_recent_activity(db: Session = Depends(get_db)):
+def get_recent_activity(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     # Join with Part and Area to print user-friendly logs
     rows = (
         db.query(models.Transaction, models.Part, models.Area)
@@ -301,7 +310,7 @@ def get_recent_activity(db: Session = Depends(get_db)):
     return {"activities": activities}
 
 @app.get("/api/v1/audit/movements", response_model=schemas.MovementsResponse)
-def get_movements(page: int = 1, limit: int = 25, search: str = "", action: str = "", db: Session = Depends(get_db)):
+def get_movements(page: int = 1, limit: int = 25, search: str = "", action: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     from sqlalchemy import or_
 
     query = (
@@ -348,7 +357,7 @@ def get_movements(page: int = 1, limit: int = 25, search: str = "", action: str 
 
 
 @app.get("/api/v1/audit/summary", response_model=schemas.AuditSummaryResponse)
-def get_audit_summary(db: Session = Depends(get_db)):
+def get_audit_summary(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     today = datetime.now(timezone.utc).date()
 
     todays_throughput = (
@@ -389,6 +398,7 @@ def get_paginated_inventory(
     search: str = "",
     status: str = "",
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
     """
     Paginated inventory with optional search (by part name or SKU)
@@ -451,7 +461,7 @@ def get_paginated_inventory(
 
 # ── Heatmap Endpoint ─────────────────────────────────
 @app.get("/api/v1/heatmap", response_model=schemas.HeatmapResponse)
-def get_heatmap(db: Session = Depends(get_db)):
+def get_heatmap(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     areas = db.query(models.Area).filter(models.Area.is_active == True).all()
     inventory_counts = (
         db.query(
@@ -491,31 +501,31 @@ def get_heatmap(db: Session = Depends(get_db)):
 # ? Added 4 new endpoints for the batch enrollment workflow
 
 @app.post("/api/v1/enrollment/start", response_model=schemas.EnrollmentStartResponse)
-async def start_enrollment(request: Request):
+async def start_enrollment(request: Request, current_user: models.User = Depends(get_current_user)):
     service = request.app.state.enrollment_service
     await service.start()
     return {"status": "started"}
 
 @app.post("/api/v1/enrollment/confirm", response_model=schemas.EnrollmentConfirmResponse)
-async def confirm_enrollment(body: schemas.EnrollmentConfirm, request: Request, db: Session = Depends(get_db)):
+async def confirm_enrollment(body: schemas.EnrollmentConfirm, request: Request, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     service = request.app.state.enrollment_service
     result = await service.confirm(part_id=body.part_id, db=db)
     return result
 
 @app.post("/api/v1/enrollment/stop", response_model=schemas.EnrollmentCancelResponse)
-async def stop_enrollment(request: Request):
+async def stop_enrollment(request: Request, current_user: models.User = Depends(get_current_user)):
     service = request.app.state.enrollment_service
     await service.stop()
     return {"status": "stopped"}
 
 @app.post("/api/v1/enrollment/cancel", response_model=schemas.EnrollmentCancelResponse)
-async def cancel_enrollment(request: Request):
+async def cancel_enrollment(request: Request, current_user: models.User = Depends(get_current_user)):
     service = request.app.state.enrollment_service
     await service.cancel()
     return {"status": "cancelled"}
 
 @app.get("/api/v1/enrollment/pending")
-async def get_pending_tags(request: Request):
+async def get_pending_tags(request: Request, current_user: models.User = Depends(get_current_user)):
     service = request.app.state.enrollment_service
     uids = service.get_pending_uids()
     return {"uids": uids, "count": len(uids), "is_active": service.is_active}

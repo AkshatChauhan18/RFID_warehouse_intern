@@ -126,10 +126,16 @@ export function AppShell({ children }: { children: ReactNode }) {
               <div className="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center">
                 <span className="material-symbols-outlined text-primary">account_circle</span>
               </div>
-              <span className="text-[12px] font-bold text-primary tracking-wider">OPERATOR_042</span>
+              <span className="text-[12px] font-bold text-primary tracking-wider">
+                {typeof localStorage !== "undefined" ? localStorage.getItem("username") || "OPERATOR" : "OPERATOR"}
+              </span>
             </div>
             <Link
               to="/auth"
+              onClick={() => {
+                localStorage.removeItem("token");
+                localStorage.removeItem("username");
+              }}
               className="w-10 h-10 flex items-center justify-center text-on-secondary-fixed-variant hover:bg-surface-container transition-colors rounded"
             >
               <span className="material-symbols-outlined">logout</span>

@@ -15,7 +15,7 @@ const auditSummaryQuery = queryOptions({
 const movementsQuery = (page: number, search: string, action: string) =>
   queryOptions({
     queryKey: ["movements", page, search, action],
-    queryFn: () => getMovements({ data: { page, limit: 10, search, action: action || undefined } }),
+    queryFn: () => getMovements(page, search, action),
     refetchInterval: 3000,
   });
 
@@ -45,8 +45,8 @@ function AuditSkeleton() {
 
 export const Route = createFileRoute("/audit")({
   loader: ({ context }) => {
-    context.queryClient.ensureQueryData(auditSummaryQuery);
-    context.queryClient.ensureQueryData(movementsQuery(1, "", ""));
+    context.queryClient.prefetchQuery(auditSummaryQuery);
+    context.queryClient.prefetchQuery(movementsQuery(1, "", ""));
   },
   head: () => ({
     meta: [

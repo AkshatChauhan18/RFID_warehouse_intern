@@ -1,6 +1,8 @@
 # ? New file created for Zebra MQTT client
 import json
 import logging
+import uuid
+from datetime import datetime, timezone
 
 import paho.mqtt.client as mqtt
 
@@ -18,9 +20,11 @@ class ZebraMQTTClient:
         self._broker = broker
         self._port = port
         self.on_tag_callback = on_tag_callback
+        self._started_at = datetime.now(timezone.utc)
 
         self._client = mqtt.Client(
-            callback_api_version=mqtt.CallbackAPIVersion.VERSION2  # type: ignore
+            client_id=f"warehouse-api-{uuid.uuid4().hex}",
+            callback_api_version=mqtt.CallbackAPIVersion.VERSION2,  # type: ignore
         )
         self._client.on_connect = self._on_connect
         self._client.on_disconnect = self._on_disconnect
@@ -83,10 +87,32 @@ class ZebraMQTTClient:
         if msg.topic == DATA_TOPIC:
             if payload.get("type") != "INVENTORY":
                 return
+
+            if msg.retain:
+                return
+
             tag = payload.get("data", {})
             uid = tag.get("idHex")
             antenna = tag.get("antenna", 0)
             rssi = tag.get("peakRssi", 0)
+
+            timestamp_value = payload.get("timestamp")
+            if timestamp_value:
+                try:
+                    timestamp_text = str(timestamp_value).replace("Z", "+00:00")
+                    event_time = datetime.fromisoformat(timestamp_text)
+                    if event_time.tzinfo is None:
+                        event_time = event_time.replace(tzinfo=timezone.utc)
+                    else:
+                        event_time = event_time.astimezone(timezone.utc)
+                    if event_time < self._started_at:
+                        logger.info(
+                            "MQTT: Ignored stale inventory event from %s",
+                            timestamp_value,
+                        )
+                        return
+                except ValueError:
+                    pass
 
             # ? Calls the callback when a new tag is scanned
             if uid and self.on_tag_callback:

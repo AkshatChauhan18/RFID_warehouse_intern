@@ -47,17 +47,18 @@ class ZebraMQTTClient:
         logger.info("MQTT: Disconnected")
 
     def start_inventory(self):
-        # ? Sends start command to reader
+        # ? Sends start command to reader (retained so reconnecting readers get it immediately)
         command = {
             "command": "start",
             "command_id": "1",
             "payload": {"doNotPersistState": True},
         }
-        self._client.publish(CONTROL_TOPIC, json.dumps(command), qos=1)
+        self._client.publish(CONTROL_TOPIC, json.dumps(command), qos=1, retain=True)
         logger.info("MQTT: START published")
 
     def stop_inventory(self):
-        # ? Sends stop command to reader
+        # ? Clears the retained start and sends stop
+        self._client.publish(CONTROL_TOPIC, payload=b"", retain=True)
         command = {"command": "stop", "command_id": "2", "payload": {}}
         self._client.publish(CONTROL_TOPIC, json.dumps(command), qos=1)
         logger.info("MQTT: STOP published")

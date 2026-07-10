@@ -1,0 +1,68 @@
+services:
+  postgres:
+    image: postgres:18
+    container_name: postgres-warehouse
+    environment:
+      POSTGRES_USER: warehouse_manager
+      POSTGRES_PASSWORD: hello_world_123
+      POSTGRES_DB: warehouse
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U warehouse_manager -d warehouse"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin-warehouse
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: hello#123
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: mosquitto-warehouse
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./backend/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+
+  backend:
+    build: ./backend
+    container_name: warehouse-backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: "postgresql+psycopg://warehouse_manager:hello_world_123@postgres:5432/warehouse"
+      MQTT_BROKER: mosquitto
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: warehouse-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      FASTAPI_BASE_URL: "http://backend:8000"
+    depends_on:
+      - backend
+
+volumes:
+  postgres-data:

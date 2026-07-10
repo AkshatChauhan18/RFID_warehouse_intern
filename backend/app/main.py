@@ -13,6 +13,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 # ? Added imports for MQTT client and enrollment service
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 from app.zebra_client import ZebraMQTTClient
 from app.enrollment_service import EnrollmentService
@@ -42,7 +43,7 @@ critical=0
 # ? Added lifespan to manage MQTT client background thread and enrollment service
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    mqtt_client = ZebraMQTTClient(broker="localhost", port=1883)
+    mqtt_client = ZebraMQTTClient(broker=os.getenv("MQTT_BROKER", "localhost"), port=1883)
     enrollment_service = EnrollmentService(mqtt_client=mqtt_client, ws_manager=manager)
     
     # ? Instantiate tracking service
@@ -65,8 +66,18 @@ async def lifespan(app: FastAPI):
     
     # ? Automatically start inventory so it tracks 24/7 (except when enrollment overrides it)
     mqtt_client.start_inventory()
+
+    # ? Keepalive: re-publish start every 10s so the reader gets the command
+    # ? even if it reconnects with a clean session after the initial publish.
+    async def _keep_inventory_alive():
+        while True:
+            await asyncio.sleep(10)
+            mqtt_client.start_inventory()
+
+    keepalive_task = asyncio.create_task(_keep_inventory_alive())
     
     yield
+    keepalive_task.cancel()
     mqtt_client.disconnect()
 
 app = FastAPI(title="Warehouse Inventory API", lifespan=lifespan)

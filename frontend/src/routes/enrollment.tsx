@@ -6,7 +6,7 @@ import { fetchWithAuth } from "@/lib/api-function";
 export const Route = createFileRoute("/enrollment")({
   head: () => ({
     meta: [
-      { title: "Batch Enrollment | LOGISTIX" },
+      { title: "Batch Enrollment | LIME" },
       { name: "description", content: "Multi-tag commissioning workflow for high-density industrial RFID inventory." },
     ],
   }),

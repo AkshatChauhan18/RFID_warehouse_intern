@@ -67,7 +67,7 @@ export const Route = createFileRoute("/inventory")({
   },
   head: () => ({
     meta: [
-      { title: "Inventory | LOGISTIX" },
+      { title: "Inventory | LIME" },
       {
         name: "description",
         content:

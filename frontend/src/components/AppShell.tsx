@@ -100,7 +100,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         {/* Top bar */}
         <header className="w-full h-16 sticky top-0 bg-surface-container-lowest border-b border-outline-variant flex justify-between items-center px-margin-desktop z-30">
           <div className="flex items-center gap-lg">
-            <span className="text-xl font-bold text-primary tracking-tight">LOGISTIX OPERATIONAL SUITE</span>
+            <span className="text-xl font-bold text-primary tracking-tight">Live Inventory Monitoring Engine </span>
             <div className="relative flex items-center">
               <span className="material-symbols-outlined absolute left-3 text-secondary text-[20px]">search</span>
               <input

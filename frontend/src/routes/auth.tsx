@@ -1,11 +1,11 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-
+import {version} from "./__root.tsx";
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Secure Authentication | SMART BIN" },
-      { name: "description", content: "Operator authentication for the LOGISTIX smart bin precision inventory control system." },
+      { title: "Secure Authentication | LIME" },
+      { name: "description", content: "Operator authentication for the LIME system." },
     ],
   }),
   component: AuthPage,
@@ -56,17 +56,17 @@ function AuthPage() {
       <main className="relative z-10 flex min-h-screen flex-col items-center justify-center px-margin-mobile md:px-margin-desktop py-xl">
         <div className="mb-lg text-center">
           <h1 className="text-5xl font-bold text-primary tracking-tight mb-xs" style={{ letterSpacing: "-0.02em" }}>
-            SMART BIN
+            LIME
           </h1>
           <p className="text-[12px] text-outline uppercase tracking-[0.25em] font-semibold">
-            Precision Inventory Control
+            Precision Inventory Monitoring
           </p>
         </div>
 
         <div className="w-full max-w-[440px] bg-surface-container-lowest border border-outline-variant p-lg shadow-sm rounded">
           <div className="flex justify-end mb-md">
             <span className="font-mono text-[10px] text-outline px-sm py-[2px] bg-surface-container rounded-sm border border-outline-variant">
-              SEC_PRTCL_V5.0
+              {`v${version}`}
             </span>
           </div>
 
@@ -101,27 +101,27 @@ function AuthPage() {
             </button>
           </form>
 
-          <div className="mt-lg pt-md border-t border-outline-variant flex justify-between items-center">
+          {/* <div className="mt-lg pt-md border-t border-outline-variant flex justify-between items-center">
             <a href="#" className="text-[12px] text-outline hover:text-primary transition-colors uppercase tracking-wider font-semibold">
               Reset Key
             </a>
             <Link to="/" className="text-[12px] text-primary hover:text-on-primary-fixed-variant transition-colors uppercase tracking-wider font-bold">
               New Access
             </Link>
-          </div>
+          </div> */}
         </div>
 
-        <div className="mt-lg w-full max-w-[440px] hidden md:block">
+        {/* <div className="mt-lg w-full max-w-[440px] hidden md:block">
           <div className="font-mono text-[11px] text-outline-variant opacity-60 flex justify-between px-xs">
             <span>&gt; AUTH_LAYER: ACTIVE</span>
             <span>&gt; ENCRYPTION: AES-256</span>
             <span>&gt; NODE: BRW_001</span>
           </div>
-        </div>
+        </div> */}
 
         <footer className="mt-xl py-md">
           <p className="text-[12px] text-outline uppercase tracking-wider font-semibold">
-            © LOGISTIX OPERATIONAL SUITE
+            © LIME Team
           </p>
         </footer>
       </main>

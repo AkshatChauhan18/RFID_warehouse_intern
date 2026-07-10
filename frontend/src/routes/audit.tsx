@@ -52,8 +52,8 @@ export const Route = createFileRoute("/audit")({
   },
   head: () => ({
     meta: [
-      { title: "Audit Ledger | LOGISTIX" },
-      { name: "description", content: "Real-time physical movement tracking for the Smart Bin Cluster." },
+      { title: "Audit Ledger | LIME" },
+      { name: "description", content: "Real-time physical movement tracking for the LIME." },
     ],
   }),
   component: AuditPage,
@@ -62,18 +62,6 @@ export const Route = createFileRoute("/audit")({
   pendingMinMs: 300,
 });
 
-
-// type Entry = { t: string; name: string; bin: string; action: "IN" | "OUT"; uid: string };
-// const entries: Entry[] = [
-//   { t: "14:21:45.02", name: "Micro-Controller Unit X7", bin: "BIN-042-A", action: "IN", uid: "UID_8829_012A" },
-//   { t: "14:21:30.14", name: "Thermal Regulator S-9", bin: "BIN-018-C", action: "OUT", uid: "UID_4451_990B" },
-//   { t: "14:21:22.09", name: "Precision Gasket Kit", bin: "BIN-109-F", action: "IN", uid: "UID_0012_772C" },
-//   { t: "14:20:58.55", name: "Lithium Cell 3.2V", bin: "BIN-042-A", action: "OUT", uid: "UID_6672_114X" },
-//   { t: "14:20:41.12", name: "Pneumatic Actuator M4", bin: "BIN-002-Z", action: "IN", uid: "UID_9921_505M" },
-//   { t: "14:20:33.00", name: "Copper Coil 40mm", bin: "BIN-055-B", action: "IN", uid: "UID_1204_003K" },
-//   { t: "14:19:59.18", name: "Fiber Optic Patch 2m", bin: "BIN-012-C", action: "OUT", uid: "UID_5541_221S" },
-//   { t: "14:19:22.44", name: "Steel Fastener M8", bin: "BIN-099-X", action: "IN", uid: "UID_3300_123F" },
-// ];
 
 function useNow(interval = 1000) {
   const [now, setNow] = useState(Date.now());
@@ -432,14 +420,6 @@ function AuditPage() {
             
           </div> */}
         </div>
-
-        {/* <footer className="mt-auto p-margin-desktop border-t border-outline-variant text-xs text-secondary flex flex-wrap gap-md justify-between">
-          <p>© 2026 LOGISTIX OPERATIONAL SUITE. INDUSTRIAL HARDWARE LAYER V2.4</p>
-          <div className="flex gap-lg">
-            <a className="hover:text-primary" href="#">System Status: Nominal</a>
-            <a className="hover:text-primary" href="#">Security Protocol: E2EE</a>
-          </div>
-        </footer> */}
       </main>
     </AppShell>
   );

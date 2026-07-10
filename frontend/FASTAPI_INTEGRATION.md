@@ -1,4 +1,4 @@
-# Connecting LOGISTIX Frontend to Your FastAPI Backend
+# Connecting LIME Frontend to Your FastAPI Backend
 
 This guide is tailored to **your actual `main.py`** (Warehouse Inventory API) and shows exactly how to wire the React/TanStack Start frontend to it.
 

@@ -91,9 +91,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "LOGISTIX Operational Suite | Smart Inventory" },
+      { title: "LIME | Smart Inventory" },
       { name: "description", content: "Industrial rfid based smart inventory control: dashboard, RFID enrollment, and audit ledger." },
-      { property: "og:title", content: "LOGISTIX Operational Suite" },
+      { property: "og:title", content: "Live Inventory Monitoring Engine" },
       { property: "og:description", content: "Precision industrial inventory control." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -136,3 +136,4 @@ function RootComponent() {
     </QueryClientProvider>
   );
 }
+export const version = "0.0.1";

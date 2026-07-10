@@ -65,7 +65,7 @@ export const Route = createFileRoute("/")({
   },
   head: () => ({
     meta: [
-      { title: "Smart Inventory | LOGISTIX" },
+      { title: "Smart Inventory | LIME" },
       { name: "description", content: "Real-time IoT telemetry from Warehouse Node Alpha." },
     ],
   }),
@@ -267,6 +267,11 @@ function DashboardPage() {
           <div className="lg:col-span-2 bg-surface-container-lowest border border-outline-variant rounded shadow-sm flex flex-col overflow-hidden">
             <div className="p-lg border-b border-outline-variant flex justify-between items-center bg-white">
               <h4 className="text-lg font-bold">Inventory Ledger</h4>
+              <span className="p-md  text-center">
+                <Link to="/inventory" className="text-[12px] font-bold text-primary hover:underline uppercase tracking-widest">
+                  View Full Inventory
+                </Link>
+              </span>
               <span className="flex items-center gap-xs text-[12px] text-secondary border border-outline-variant px-sm py-xs rounded font-semibold uppercase tracking-wider">
                 <span className="w-2 h-2 rounded-full bg-green-500"></span> Live Status
               </span>
@@ -341,11 +346,7 @@ function DashboardPage() {
                 </tbody>
               </table>
             </div>
-            <div className="p-md bg-surface-container-low border-t border-outline-variant text-center">
-              <Link to="/inventory" className="text-[12px] font-bold text-primary hover:underline uppercase tracking-widest">
-                View Full Inventory
-              </Link>
-            </div>
+            
           </div>
 
           {/* Right column */}
